@@ -1,0 +1,57 @@
+# ─── Node / Next.js ───────────────────────────────────────────────────────────
+node_modules/
+.next/
+dist/
+out/
+.npm/
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Environment files ────────────────────────────────────────────────────────
+# Root universal .env — never commit real secrets
+.env
+# Per-app env files (legacy / editor-created)
+.env.local
+.env.*.local
+backend/.env
+frontend/.env.local
+# .env.example files ARE committed (they have placeholders only)
+
+# ─── Data – raw cache only (curated & validation ARE committed) ───────────────
+/data/raw/*
+!/data/raw/.gitkeep
+
+# ─── OS artefacts ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Editors ──────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ─── Build / coverage ─────────────────────────────────────────────────────────
+coverage/
+htmlcov/
+.coverage
+*.log
+
+# ─── Temporary scaffold dirs (used during setup, not part of project) ─────────
+nextjstmp/
+_nextjs_tmp/
+
+# NOTE: /data/curated and /data/validation are intentionally NOT ignored.
+# They are committed to the repository.
