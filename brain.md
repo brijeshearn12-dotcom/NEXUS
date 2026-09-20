@@ -1,4 +1,4 @@
-﻿# BRAIN.md — Operating Rules for SIH26189GREEN
+# BRAIN.md — Operating Rules for SIH26189GREEN
 
 > Read this file at the start of every session. It is the authoritative
 > source of truth for how the AI assistant must behave on this project.
@@ -41,19 +41,16 @@
    without a pytest unit test covering the happy path and at least one
    edge case.
 
-7. **HOLY_BUILD_BOOK first.** Before starting each day's code, update the
-   corresponding day section in `/docs/HOLY_BUILD_BOOK.md` with the plan
-   for that day.
+7. **memory.md is the live log.** After every session, update `memory.md`
+   with decisions made, blockers hit, and next priority.
 
-8. **memory.md is the live log.** After every session, update `memory.md`
-   with decisions made, blockers hit, and tomorrow's top priority.
 
-9. **design.md is immutable intent.** Do not change `design.md` without
+8. **design.md is immutable intent.** Do not change `design.md` without
    the developer's explicit instruction. It captures UI/UX and system
    design decisions.
 
-10. **No real secrets ever.** Only `.env.example` files with placeholder
-    values are committed. `.env` is gitignored unconditionally.
+9. **No real secrets ever.** Only `.env.example` files with placeholder
+   values are committed. `.env` is gitignored unconditionally.
 
 ---
 
@@ -90,20 +87,3 @@ the knowledge graph. Every analyst action is recorded in an immutable
 audit trail. The Command Center dashboard ties everything together. Synthetic
 CDR and transaction data can be generated for demo purposes.
 
----
-
-## 5. Day Map (high-level)
-
-| Day | Focus |
-|---|---|
-| 0 | Foundation scaffold (this prompt) |
-| 1 | MongoDB connection, corpus fetch, raw storage |
-| 2 | Regex + spaCy extraction pipeline, provenance model |
-| 3 | LLM fallback (Gemini), accused extractor, legal role filter |
-| 4 | Graph construction (NetworkX), edge rules, cross-case linking |
-| 5 | Analytics: centrality, community, pattern flags, key individuals |
-| 6 | Validation layer (Noordin Top), human-in-the-loop UI |
-| 7 | Synthetic data generators (CDR, transactions) |
-| 8 | Frontend: GraphCanvas, panels, Command Center dashboard |
-| 9 | Report generation (PDF), audit trail, final polish |
-| 10 | End-to-end testing, demo prep, submission |
