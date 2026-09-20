@@ -29,22 +29,50 @@ def load_noordin_metadata() -> dict[str, Any]:
         return json.load(fp)
 
 
-def load_noordin_edges() -> list[dict[str, Any]]:
-    """Load ground-truth network edges from CSV."""
+def load_edge_file(filename: str) -> list[dict[str, Any]]:
+    """Load an edge list CSV by filename."""
     val_dir = get_validation_dir()
-    edge_file = val_dir / "noordin_top_edges.csv"
-    if not edge_file.exists():
-        raise FileNotFoundError(f"Noordin Top edge list not found at {edge_file}")
+    file_path = val_dir / filename
+    if not file_path.exists():
+        raise FileNotFoundError(f"Validation edge file not found: {file_path}")
 
     edges: list[dict[str, Any]] = []
-    with open(edge_file, encoding="utf-8") as fp:
+    with open(file_path, encoding="utf-8") as fp:
         reader = csv.DictReader(fp)
         for row in reader:
+            if not row or not row.get("source"):
+                continue
             edges.append({
                 "source": row["source"],
                 "target": row["target"],
-                "relationship_type": row["relationship_type"],
-                "weight": float(row.get("weight", 1.0)),
-                "provenance": row.get("provenance", "ICG Report No. 114"),
+                "relationship": row.get("relationship", ""),
+                "confidence": float(row.get("confidence", 1.0)),
+                "source_reference": row.get("source_reference", ""),
             })
     return edges
+
+
+def load_communication_edges() -> list[dict[str, Any]]:
+    return load_edge_file("communication_edges.csv")
+
+
+def load_operational_edges() -> list[dict[str, Any]]:
+    return load_edge_file("operational_edges.csv")
+
+
+def load_trust_edges() -> list[dict[str, Any]]:
+    return load_edge_file("trust_edges.csv")
+
+
+def load_financial_edges() -> list[dict[str, Any]]:
+    return load_edge_file("financial_edges.csv")
+
+
+def load_all_noordin_edges() -> dict[str, list[dict[str, Any]]]:
+    """Load all categorized edge lists for validation benchmarking."""
+    return {
+        "communication": load_communication_edges(),
+        "operational": load_operational_edges(),
+        "trust": load_trust_edges(),
+        "financial": load_financial_edges(),
+    }
