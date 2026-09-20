@@ -1,4 +1,5 @@
-import { loadEnvConfig } from "@next/env";
+import pkg from "@next/env";
+const { loadEnvConfig } = pkg;
 import path from "path";
 import { fileURLToPath } from "url";
 

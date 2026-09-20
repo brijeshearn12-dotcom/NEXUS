@@ -1,4 +1,5 @@
 ﻿"""Validate router — placeholder. Implement on Day N."""
+
 from fastapi import APIRouter
 
 router = APIRouter()

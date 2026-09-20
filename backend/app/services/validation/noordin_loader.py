@@ -3,6 +3,7 @@ noordin_loader.py — Load Noordin Top validation dataset for graph algorithm be
 
 SIH26189GREEN | Criminal Network Analysis System
 """
+
 from __future__ import annotations
 
 import csv
@@ -42,13 +43,15 @@ def load_edge_file(filename: str) -> list[dict[str, Any]]:
         for row in reader:
             if not row or not row.get("source"):
                 continue
-            edges.append({
-                "source": row["source"],
-                "target": row["target"],
-                "relationship": row.get("relationship", ""),
-                "confidence": float(row.get("confidence", 1.0)),
-                "source_reference": row.get("source_reference", ""),
-            })
+            edges.append(
+                {
+                    "source": row["source"],
+                    "target": row["target"],
+                    "relationship": row.get("relationship", ""),
+                    "confidence": float(row.get("confidence", 1.0)),
+                    "source_reference": row.get("source_reference", ""),
+                }
+            )
     return edges
 
 

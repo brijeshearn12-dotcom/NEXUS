@@ -1,5 +1,7 @@
 """Application configuration — reads from the single root-level .env file."""
+
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Root of the repo is three levels up from this file:
@@ -15,11 +17,13 @@ class Settings(BaseSettings):
     )
 
     mongodb_uri: str = ""
+    indian_kanoon_api_token: str = ""
     indian_kanoon_api_key: str = ""
     gemini_api_key: str = ""
     groq_api_key: str = ""
     next_public_api_base_url: str = "http://localhost:8000"
-    app_name: str = "SIH26189GREEN — Criminal Network Analysis API"
+    next_public_api_url: str = "http://localhost:8000"
+    app_name: str = "NEXUS — Criminal Network Analysis API"
     debug: bool = False
 
 
