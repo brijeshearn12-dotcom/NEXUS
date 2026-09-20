@@ -1,0 +1,63 @@
+{
+  "dataset_name": "Noordin Top Terrorist Network",
+  "citation": "Roberts, N., & Everton, S. F. (2011). Roberts and Everton Terrorist Data: Noordin Top Terrorist Network (Subset). CORE Lab, Naval Postgraduate School.",
+  "doi": "10.17605/OSF.IO/ZMB9C",
+  "source_repository": "Open Science Framework (OSF) & Association of Religion Data Archives (ARDA)",
+  "primary_source_document": "International Crisis Group (2006). Terrorism in Indonesia: Noordin's Networks. Asia Report N°114.",
+  "academic_reference": "Everton, S. F. (2012). Disrupting Dark Networks. Structural Analysis in the Social Sciences. Cambridge University Press.",
+  "network_type": "1-mode actor-to-actor multi-relational covert network",
+  "node_count": 79,
+  "nodes_description": "79 key operatives, facilitators, safehouse providers, couriers, and logisticians in Noordin Mohammad Top's network.",
+  "relationship_types": [
+    {
+      "type": "KINSHIP",
+      "description": "Family and marriage relations between operatives",
+      "directed": false
+    },
+    {
+      "type": "FRIENDSHIP",
+      "description": "Close personal friendship prior to or outside of operations",
+      "directed": false
+    },
+    {
+      "type": "OPERATIONAL_LOGISTICAL",
+      "description": "Direct collaboration in bombings, safehouse/shelter provision, weapons transport, or bomb making",
+      "directed": false
+    },
+    {
+      "type": "COMMUNICATION",
+      "description": "Recorded messaging, telephone contact, or courier links between operatives",
+      "directed": false
+    },
+    {
+      "type": "TRAINING_CAMP",
+      "description": "Co-attendance at paramilitary training camps (e.g. Mindanao, Afghanistan)",
+      "directed": false
+    },
+    {
+      "type": "RELIGIOUS_EDUCATIONAL",
+      "description": "Shared attendance at radical pesantrens/madrasahs (Al-Mukmin, Luqmanul Hakiem)",
+      "directed": false
+    }
+  ],
+  "benchmark_metrics": {
+    "key_actors": [
+      "Noordin Mohammad Top (Leader / Mastermind)",
+      "Azahari Husin (Chief Bomb-maker)",
+      "Irun Ali (Logistics / Harboring)",
+      "Urwah (Operational Commander)",
+      "Fathur Rahman al-Ghozi (Trainer / Weapons)"
+    ],
+    "top_centrality_nodes_expected": [
+      "Noordin Mohammad Top",
+      "Azahari Husin",
+      "Subur Sugiarto",
+      "Urwah"
+    ]
+  },
+  "limitations": [
+    "Covert/dark network data suffers from incomplete reporting and arrest-based discovery bias.",
+    "Ties are primarily binary (presence/absence) rather than continuously weighted by interaction volume.",
+    "Temporal dynamics are flattened into an aggregated network window (2001-2009)."
+  ]
+}
