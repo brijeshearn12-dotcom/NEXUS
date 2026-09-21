@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import httpx
 from fastapi.testclient import TestClient
@@ -456,3 +456,108 @@ def test_check_devanagari_presence_direct():
 
     hindi_text = "यह भारतीय कानूनी दस्तावेज का अंश है।"
     assert check_devanagari_presence(hindi_text, min_chars=5) is True
+
+
+# ── 8. TASK 3.2 EXTRACTION ENDPOINTS & PERSISTENCE TESTS ──────────────────────
+
+
+def test_api_document_extract_endpoint_success():
+    # Individual extraction endpoint POST /api/documents/{id}/extract
+    resp = client.post("/api/documents/doc_100478559/extract?enable_gemini_fallback=false")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["document_id"] == "doc_100478559"
+    assert data["status"] == "success"
+    assert data["entities_extracted"] > 0
+    assert "by_method" in data
+    assert "by_type" in data
+    assert len(data["entities"]) == data["entities_extracted"]
+
+    # Verify entities are persisted in MongoDB
+    resp_ents = client.get("/api/entities/?document_id=doc_100478559")
+    assert resp_ents.status_code == 200
+    assert resp_ents.json()["total"] == data["entities_extracted"]
+
+
+def test_api_document_extract_endpoint_missing_doc():
+    resp = client.post("/api/documents/doc_missing_nonexistent_999/extract")
+    assert resp.status_code == 404
+    assert "not found" in resp.json()["detail"].lower()
+
+
+def test_api_document_extract_endpoint_empty_text():
+    from app.core.db import get_collection
+    db_docs = get_collection("documents")
+
+    # Insert temporary empty document
+    temp_id = "doc_test_empty_temporary"
+    db_docs.insert_one({"id": temp_id, "case_id": "case_empty", "title": "Empty Doc", "text": "   ", "raw_text": ""})
+
+    try:
+        resp = client.post(f"/api/documents/{temp_id}/extract")
+        assert resp.status_code == 400
+        assert "empty text" in resp.json()["detail"].lower()
+    finally:
+        db_docs.delete_one({"id": temp_id})
+
+
+def test_api_document_extract_failure_handling():
+    with patch("app.api.documents.extract_and_store_document") as mock_extract:
+        mock_extract.side_effect = RuntimeError("Database connection timed out")
+        resp = client.post("/api/documents/doc_100478559/extract")
+        assert resp.status_code == 500
+        assert "Database connection timed out" in resp.json()["detail"]
+
+
+def test_api_corpus_extract_all_endpoint():
+    # Batch corpus extraction POST /api/corpus/extract-all
+    resp = client.post("/api/corpus/extract-all?enable_gemini_fallback=false")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_documents"] >= 20
+    assert data["successful_documents"] >= 20
+    assert data["failed_documents"] == 0
+    assert data["total_entities_extracted"] > 0
+    assert "entity_counts_by_type" in data
+    assert "entity_counts_by_method" in data
+    assert "processing_duration_sec" in data
+    assert isinstance(data["error_details"], list)
+
+
+def test_api_documents_list_and_get():
+    # List documents
+    resp_list = client.get("/api/documents/")
+    assert resp_list.status_code == 200
+    data = resp_list.json()
+    assert data["total"] >= 20
+    assert len(data["items"]) >= 1
+
+    first = data["items"][0]
+    assert "id" in first
+    assert "title" in first
+    assert "entities_count" in first
+    assert "extraction_status" in first
+
+    # Get single document
+    doc_id = first["id"]
+    resp_get = client.get(f"/api/documents/{doc_id}")
+    assert resp_get.status_code == 200
+    doc_data = resp_get.json()
+    assert doc_data["id"] == doc_id
+    assert "text" in doc_data
+    assert "entities_count" in doc_data
+
+
+def test_api_entities_search_and_filter():
+    # Search by name
+    resp_search = client.get("/api/entities/?q=Balakarupasamy")
+    assert resp_search.status_code == 200
+    data = resp_search.json()
+    assert data["total"] >= 1
+    assert any("Balakarupasamy" in e["name"] for e in data["items"])
+
+    # Filter by method
+    resp_method = client.get("/api/entities/?method=regex_fir")
+    assert resp_method.status_code == 200
+    data_method = resp_method.json()
+    assert all(e["provenance"]["method"] == "regex_fir" for e in data_method["items"])

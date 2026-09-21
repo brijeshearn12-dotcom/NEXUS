@@ -9,10 +9,37 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.db import get_db
 from app.services.corpus_service import load_curated_corpus
+from app.services.extraction.service import extract_all_corpus_documents
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.post(
+    "/extract-all",
+    summary="Run entity extraction across all documents in the corpus",
+    response_model=dict[str, Any],
+    status_code=status.HTTP_200_OK,
+)
+async def extract_all_corpus_endpoint(
+    enable_gemini_fallback: bool = Query(
+        default=True,
+        description="Whether to permit Gemini fallback if yield is low or Hindi text is detected",
+    ),
+) -> dict[str, Any]:
+    """Execute entity extraction across all eligible documents in the corpus safely and idempotently."""
+    try:
+        result = extract_all_corpus_documents(
+            enable_gemini_fallback=enable_gemini_fallback,
+        )
+        return result
+    except Exception as exc:
+        logger.exception("Batch corpus extraction failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Batch corpus extraction encountered an error: {str(exc)}",
+        ) from exc
 
 
 @router.post(

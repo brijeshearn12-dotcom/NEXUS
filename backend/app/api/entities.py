@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -11,16 +12,19 @@ from app.core.db import get_collection
 router = APIRouter()
 
 
-@router.get("/", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
+@router.get("", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
+@router.get("/", response_model=dict[str, Any], status_code=status.HTTP_200_OK, include_in_schema=False)
 async def list_entities(
     case_id: str | None = Query(default=None, description="Filter by case ID"),
     document_id: str | None = Query(default=None, description="Filter by document ID"),
     entity_type: str | None = Query(default=None, description="Filter by entity type"),
     verification_status: str | None = Query(default=None, description="Filter by status"),
+    method: str | None = Query(default=None, description="Filter by provenance method"),
+    q: str | None = Query(default=None, description="Search by entity name or alias"),
     limit: int = Query(default=50, ge=1, le=500),
     skip: int = Query(default=0, ge=0),
 ) -> dict[str, Any]:
-    """List extracted entities with optional filtering by case, document, type, or status."""
+    """List extracted entities with optional filtering by case, document, type, status, method, or name query."""
     db_entities = get_collection("entities")
     query_filter: dict[str, Any] = {}
 
@@ -32,6 +36,14 @@ async def list_entities(
         query_filter["entity_type"] = entity_type.upper()
     if verification_status:
         query_filter["verification_status"] = verification_status.lower()
+    if method:
+        query_filter["provenance.method"] = method
+    if q and q.strip():
+        safe_q = re.escape(q.strip())
+        query_filter["$or"] = [
+            {"name": {"$regex": safe_q, "$options": "i"}},
+            {"aliases": {"$regex": safe_q, "$options": "i"}},
+        ]
 
     total = db_entities.count_documents(query_filter)
     cursor = db_entities.find(query_filter, {"_id": 0}).skip(skip).limit(limit)

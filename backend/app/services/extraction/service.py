@@ -205,12 +205,15 @@ def extract_and_store_document(
         raise ValueError(f"Document not found with ID: {document_id}")
 
     case_id = doc_data.get("case_id", f"case_{document_id}")
-    # Retrieve cleaned document text as specified in Task 3.1
+    # Retrieve cleaned document text as specified in Task 3.1 & 3.2
     text_to_extract = (
         doc_data.get("text")
         or doc_data.get("extraction_text")
         or ""
     )
+
+    if not text_to_extract or not text_to_extract.strip():
+        raise ValueError(f"Document '{document_id}' has empty text content.")
 
     # Record extraction started audit
     audit_start = AuditLogEntry(
@@ -238,12 +241,20 @@ def extract_and_store_document(
 
         entities: list[Entity] = extraction_result["entities"]
 
+        # Remove previous extractions for this document to ensure strict idempotency
+        db_entities.delete_many({"document_id": document_id})
+
         # Idempotent upsert into MongoDB entities collection
         upserted_count = 0
         for ent in entities:
             ent_dict = ent.model_dump(by_alias=True)
             db_entities.replace_one({"id": ent.id}, ent_dict, upsert=True)
             upserted_count += 1
+
+        # Calculate counts by entity type
+        by_type: dict[str, int] = {}
+        for ent in entities:
+            by_type[ent.entity_type] = by_type.get(ent.entity_type, 0) + 1
 
         # Audit completion
         audit_finish = AuditLogEntry(
@@ -266,8 +277,10 @@ def extract_and_store_document(
         return {
             "document_id": document_id,
             "case_id": case_id,
+            "status": "success",
             "entities_extracted": len(entities),
             "by_method": extraction_result["by_method"],
+            "by_type": by_type,
             "gemini_used": extraction_result["gemini_used"],
             "gemini_reason": extraction_result["gemini_reason"],
             "filtered_legal_roles_count": extraction_result["filtered_legal_roles_count"],
@@ -286,3 +299,122 @@ def extract_and_store_document(
         )
         db_audit.insert_one(audit_fail.model_dump(by_alias=True))
         raise
+
+
+def extract_all_corpus_documents(
+    enable_gemini_fallback: bool = True,
+    gemini_api_key: str | None = None,
+) -> dict[str, Any]:
+    """Execute extraction safely across all corpus documents in MongoDB.
+
+    Continues processing on individual failures, calculates duration, aggregates entity counts
+    by type and method, and logs audit events.
+    """
+    import time
+
+    start_time = time.perf_counter()
+    db_docs = get_documents_collection()
+    db_audit = get_audit_collection()
+
+    cursor = db_docs.find({}, {"id": 1, "case_id": 1, "title": 1})
+    all_doc_ids = [doc["id"] for doc in cursor if "id" in doc]
+
+    total_docs = len(all_doc_ids)
+    successful_docs = 0
+    failed_docs = 0
+    total_entities = 0
+    entity_counts_by_type: dict[str, int] = {}
+    entity_counts_by_method: dict[str, int] = {
+        "regex_phone": 0,
+        "regex_vehicle": 0,
+        "regex_fir": 0,
+        "regex_case_number": 0,
+        "spacy_ner": 0,
+        "accused_pattern": 0,
+        "gemini_fallback": 0,
+    }
+    error_details: list[dict[str, str]] = []
+    results: list[dict[str, Any]] = []
+
+    # Audit start
+    audit_start = AuditLogEntry(
+        case_id="corpus_batch",
+        actor="nexus_batch_extractor",
+        action="batch_extraction_started",
+        timestamp=datetime.now(UTC),
+        input_summary={"total_documents": total_docs},
+        result_summary=f"Started batch entity extraction across {total_docs} documents",
+    )
+    db_audit.insert_one(audit_start.model_dump(by_alias=True))
+
+    for doc_id in all_doc_ids:
+        try:
+            res = extract_and_store_document(
+                document_id=doc_id,
+                enable_gemini_fallback=enable_gemini_fallback,
+                gemini_api_key=gemini_api_key,
+            )
+            successful_docs += 1
+            extracted_cnt = res["entities_extracted"]
+            total_entities += extracted_cnt
+
+            for m_name, cnt in res.get("by_method", {}).items():
+                entity_counts_by_method[m_name] = entity_counts_by_method.get(m_name, 0) + cnt
+            for t_name, cnt in res.get("by_type", {}).items():
+                entity_counts_by_type[t_name] = entity_counts_by_type.get(t_name, 0) + cnt
+
+            results.append({
+                "document_id": doc_id,
+                "case_id": res.get("case_id"),
+                "status": "success",
+                "entities_extracted": extracted_cnt,
+                "by_method": res.get("by_method", {}),
+                "by_type": res.get("by_type", {}),
+                "gemini_used": res.get("gemini_used", False),
+            })
+        except Exception as exc:
+            failed_docs += 1
+            err_msg = str(exc)
+            logger.warning("Batch extraction error on document %s: %s", doc_id, err_msg)
+            error_details.append({
+                "document_id": doc_id,
+                "error": err_msg,
+            })
+            results.append({
+                "document_id": doc_id,
+                "status": "failed",
+                "error": err_msg,
+            })
+
+    duration_sec = round(time.perf_counter() - start_time, 3)
+
+    # Audit finish
+    audit_finish = AuditLogEntry(
+        case_id="corpus_batch",
+        actor="nexus_batch_extractor",
+        action="batch_extraction_completed",
+        timestamp=datetime.now(UTC),
+        input_summary={
+            "total_documents": total_docs,
+            "duration_sec": duration_sec,
+        },
+        result_summary=(
+            f"Batch completed: {successful_docs}/{total_docs} succeeded, "
+            f"{failed_docs} failed, {total_entities} total entities."
+        ),
+    )
+    db_audit.insert_one(audit_finish.model_dump(by_alias=True))
+
+    return {
+        "status": "success" if failed_docs == 0 else "partial_success",
+        "total_documents": total_docs,
+        "successful_documents": successful_docs,
+        "failed_documents": failed_docs,
+        "total_entities_extracted": total_entities,
+        "total_entities_created_or_updated": total_entities,
+        "entity_counts_by_type": entity_counts_by_type,
+        "entity_counts_by_method": entity_counts_by_method,
+        "processing_duration_sec": duration_sec,
+        "error_details": error_details,
+        "results": results,
+    }
