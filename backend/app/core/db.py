@@ -122,8 +122,11 @@ def ensure_indexes(database: Any | None = None) -> dict[str, list[str]]:
         idx_doc = db.documents.create_index("case_id", background=True)
         index_manifest["documents"] = [idx_doc]
 
-        idx_ent = db.entities.create_index("case_id", background=True)
-        index_manifest["entities"] = [idx_ent]
+        idx_ent_case = db.entities.create_index("case_id", background=True)
+        idx_ent_doc = db.entities.create_index("document_id", background=True)
+        idx_ent_type = db.entities.create_index("entity_type", background=True)
+        idx_ent_status = db.entities.create_index("verification_status", background=True)
+        index_manifest["entities"] = [idx_ent_case, idx_ent_doc, idx_ent_type, idx_ent_status]
 
         idx_edge_case = db.edges.create_index("case_id", background=True)
         idx_edge_src = db.edges.create_index("source_entity_id", background=True)

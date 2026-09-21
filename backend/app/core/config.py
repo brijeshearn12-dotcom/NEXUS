@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     )
     app_name: str = "NEXUS — Criminal Network Analysis API"
     debug: bool = False
+    low_yield_min_entities_per_1000_chars: float = 0.5
 
     @property
     def allowed_cors_origins(self) -> list[str]:

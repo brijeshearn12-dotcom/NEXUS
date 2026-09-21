@@ -66,13 +66,14 @@ async def health_db_check() -> JSONResponse:
 
 
 # ── Route modules (stubs — will be fleshed out on their respective days) ──────
-from app.api import cases, corpus, documents, entities, report, validate  # noqa: E402
+from app.api import cases, corpus, documents, entities, extraction, report, validate  # noqa: E402
 
-# Mount primary /api endpoints as specified in Task 2.2
+# Mount primary /api endpoints as specified in Task 2.2 and Task 3.1
 app.include_router(corpus.router, prefix="/api/corpus", tags=["Corpus"])
 app.include_router(cases.router, prefix="/api/cases", tags=["Cases"])
 app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
 app.include_router(entities.router, prefix="/api/entities", tags=["Entities"])
+app.include_router(extraction.router, prefix="/api/extraction", tags=["Extraction"])
 app.include_router(validate.router, prefix="/api/validate", tags=["Validation"])
 app.include_router(report.router, prefix="/api/report", tags=["Report"])
 
@@ -83,6 +84,9 @@ app.include_router(
     documents.router, prefix="/documents", tags=["Documents"], include_in_schema=False
 )
 app.include_router(entities.router, prefix="/entities", tags=["Entities"], include_in_schema=False)
+app.include_router(
+    extraction.router, prefix="/extraction", tags=["Extraction"], include_in_schema=False
+)
 app.include_router(
     validate.router, prefix="/validate", tags=["Validation"], include_in_schema=False
 )

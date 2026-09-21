@@ -9,8 +9,7 @@ pydantic-settings>=2.6.0
 #   a) pyenv + Python 3.12 venv: pip install spacy==3.7.4
 #   b) conda: conda install -c conda-forge spacy
 #   c) Wait for spaCy 3.8+ which adds Py3.14 wheels.
-# Uncomment the line below once you have a compatible environment:
-# spacy==3.7.4
+spacy>=3.8.0
 networkx==3.3
 python-louvain==0.16
 rapidfuzz==3.9.3

@@ -24,6 +24,10 @@ class Entity(NexusBaseModel):
         ...,
         description="ID of the case this entity is associated with",
     )
+    document_id: str | None = Field(
+        default=None,
+        description="ID of the source document this entity was extracted from",
+    )
     name: str = Field(
         ...,
         description="Canonical or resolved name of the entity",
@@ -43,6 +47,10 @@ class Entity(NexusBaseModel):
     verification_status: VerificationStatus = Field(
         default=VerificationStatus.UNVERIFIED,
         description="Verification state: unverified, confirmed, or rejected",
+    )
+    evidence_snippet: str | None = Field(
+        default=None,
+        description="Exact context snippet from source document validating this entity",
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
