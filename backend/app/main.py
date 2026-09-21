@@ -68,12 +68,25 @@ async def health_db_check() -> JSONResponse:
 # ── Route modules (stubs — will be fleshed out on their respective days) ──────
 from app.api import cases, corpus, documents, entities, report, validate  # noqa: E402
 
-app.include_router(corpus.router, prefix="/corpus", tags=["Corpus"])
-app.include_router(cases.router, prefix="/cases", tags=["Cases"])
-app.include_router(documents.router, prefix="/documents", tags=["Documents"])
-app.include_router(entities.router, prefix="/entities", tags=["Entities"])
-app.include_router(validate.router, prefix="/validate", tags=["Validation"])
-app.include_router(report.router, prefix="/report", tags=["Report"])
+# Mount primary /api endpoints as specified in Task 2.2
+app.include_router(corpus.router, prefix="/api/corpus", tags=["Corpus"])
+app.include_router(cases.router, prefix="/api/cases", tags=["Cases"])
+app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
+app.include_router(entities.router, prefix="/api/entities", tags=["Entities"])
+app.include_router(validate.router, prefix="/api/validate", tags=["Validation"])
+app.include_router(report.router, prefix="/api/report", tags=["Report"])
+
+# Also mount under non-/api prefix for backward compatibility with frontend / existing routes
+app.include_router(corpus.router, prefix="/corpus", tags=["Corpus"], include_in_schema=False)
+app.include_router(cases.router, prefix="/cases", tags=["Cases"], include_in_schema=False)
+app.include_router(
+    documents.router, prefix="/documents", tags=["Documents"], include_in_schema=False
+)
+app.include_router(entities.router, prefix="/entities", tags=["Entities"], include_in_schema=False)
+app.include_router(
+    validate.router, prefix="/validate", tags=["Validation"], include_in_schema=False
+)
+app.include_router(report.router, prefix="/report", tags=["Report"], include_in_schema=False)
 
 
 if __name__ == "__main__":

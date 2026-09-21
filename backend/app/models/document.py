@@ -64,6 +64,22 @@ class Document(NexusBaseModel):
         default=None,
         description="Public URL for the source judgment",
     )
+    raw_text: str | None = Field(
+        default=None,
+        description="Original source text before boilerplate stripping (optional to avoid unnecessary bloat)",
+    )
+    extraction_text: str | None = Field(
+        default=None,
+        description="Segmented fact-section text for downstream entity/network extraction",
+    )
+    cleaning_metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Cleaning metrics including retention ratio, character counts, and version",
+    )
+    segmentation_metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Fact-section segmentation details (section name, confidence, boundary offsets)",
+    )
     metadata: dict[str, Any] = Field(
         default_factory=dict,
         description="Additional corpus manifest or domain metadata",
