@@ -74,10 +74,79 @@ def test_db_connection() -> tuple[bool, str]:
         return False, "Database health check encountered an unexpected error"
 
 
+COLLECTIONS = {
+    "CASES": "cases",
+    "DOCUMENTS": "documents",
+    "ENTITIES": "entities",
+    "EDGES": "edges",
+    "FLAGS": "flags",
+    "VALIDATION_RUNS": "validation_runs",
+    "AUDIT_LOG": "audit_log",
+}
+
+
 def get_db(db_name: str = DB_NAME) -> Any:
     """Return a database instance from the reusable client."""
     client = get_mongo_client()
     return client[db_name]
+
+
+def get_collection(name: str, db_name: str = DB_NAME) -> Any:
+    """Return a collection handle from the configured database."""
+    return get_db(db_name)[name]
+
+
+def ensure_indexes(database: Any | None = None) -> dict[str, list[str]]:
+    """
+    Ensure required indexes exist across canonical NEXUS collections.
+
+    Indexes:
+    - cases: case_id
+    - documents: case_id
+    - entities: case_id
+    - edges: case_id, source_entity_id, target_entity_id
+    - flags: case_id
+    - validation_runs: case_id
+    - audit_log: case_id, timestamp
+
+    Safe and idempotent: uses PyMongo create_index with background=True.
+    Does NOT drop, purge, or overwrite any collections or documents.
+    """
+    db = database if database is not None else get_db()
+    index_manifest: dict[str, list[str]] = {}
+
+    try:
+        idx_cases = db.cases.create_index("case_id", background=True)
+        index_manifest["cases"] = [idx_cases]
+
+        idx_doc = db.documents.create_index("case_id", background=True)
+        index_manifest["documents"] = [idx_doc]
+
+        idx_ent = db.entities.create_index("case_id", background=True)
+        index_manifest["entities"] = [idx_ent]
+
+        idx_edge_case = db.edges.create_index("case_id", background=True)
+        idx_edge_src = db.edges.create_index("source_entity_id", background=True)
+        idx_edge_tgt = db.edges.create_index("target_entity_id", background=True)
+        index_manifest["edges"] = [idx_edge_case, idx_edge_src, idx_edge_tgt]
+
+        idx_flag = db.flags.create_index("case_id", background=True)
+        index_manifest["flags"] = [idx_flag]
+
+        idx_val = db.validation_runs.create_index("case_id", background=True)
+        index_manifest["validation_runs"] = [idx_val]
+
+        idx_audit_case = db.audit_log.create_index("case_id", background=True)
+        idx_audit_time = db.audit_log.create_index("timestamp", background=True)
+        index_manifest["audit_log"] = [idx_audit_case, idx_audit_time]
+
+        logger.info(
+            "Canonical indexes verified on MongoDB database: %s", getattr(db, "name", "unknown")
+        )
+    except Exception as exc:
+        logger.warning("Index verification encountered an issue: %s", exc)
+
+    return index_manifest
 
 
 def close_mongo_client() -> None:
@@ -95,13 +164,14 @@ def close_mongo_client() -> None:
 
 # Async lifespan helpers for FastAPI
 async def connect() -> None:
-    """Initialize client on application startup if configured."""
+    """Initialize client on application startup if configured and ensure indexes."""
     if settings.mongodb_uri:
         try:
             get_mongo_client()
             logger.info("MongoDB client initialized for database: %s", DB_NAME)
+            ensure_indexes()
         except Exception:
-            logger.error("Failed to initialize MongoDB client on startup.")
+            logger.error("Failed to initialize MongoDB client or indexes on startup.")
 
 
 async def disconnect() -> None:

@@ -1,4 +1,4 @@
-"""Canonical Entity model for NEXUS."""
+"""Canonical Case model for NEXUS criminal network analysis."""
 
 from __future__ import annotations
 
@@ -13,32 +13,28 @@ from app.models.enums import VerificationStatus
 from app.models.provenance import Provenance
 
 
-class Entity(NexusBaseModel):
-    """Named entity (e.g. accused person, organization, location) with provenance tracking."""
+class Case(NexusBaseModel):
+    """Investigation case container holding documents, entities, and edges."""
 
     id: str = Field(
         default_factory=lambda: str(uuid.uuid4()),
-        description="Unique string identifier for the entity",
+        description="Unique string identifier for the case",
     )
     case_id: str = Field(
         ...,
-        description="ID of the case this entity is associated with",
+        description="Canonical human-readable or system case reference identifier",
     )
-    name: str = Field(
+    title: str = Field(
         ...,
-        description="Canonical or resolved name of the entity",
+        description="Title or caption of the criminal case",
     )
-    entity_type: str = Field(
-        ...,
-        description="Type of entity (e.g. person, organization, location, unknown)",
-    )
-    aliases: list[str] = Field(
-        default_factory=list,
-        description="Known aliases, nick-names, or alternative spellings",
+    description: str | None = Field(
+        default=None,
+        description="Summary or scope of the investigation",
     )
     provenance: Provenance = Field(
         ...,
-        description="Provenance of how and where this entity was extracted",
+        description="Source provenance for the case definition",
     )
     verification_status: VerificationStatus = Field(
         default=VerificationStatus.UNVERIFIED,
@@ -54,5 +50,5 @@ class Entity(NexusBaseModel):
     )
     metadata: dict[str, Any] = Field(
         default_factory=dict,
-        description="Optional additional attributes (e.g. legal role, charges)",
+        description="Optional case metadata (e.g. court, jurisdiction, FIR numbers)",
     )

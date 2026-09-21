@@ -24,9 +24,7 @@ class Settings(BaseSettings):
     next_public_api_base_url: str = "http://localhost:8000"
     frontend_url: str = "https://nexus-frontend-qtak.onrender.com"
     cors_origins: str = (
-        "https://nexus-frontend-qtak.onrender.com,"
-        "http://localhost:3000,"
-        "http://127.0.0.1:3000"
+        "https://nexus-frontend-qtak.onrender.com," "http://localhost:3000," "http://127.0.0.1:3000"
     )
     app_name: str = "NEXUS — Criminal Network Analysis API"
     debug: bool = False

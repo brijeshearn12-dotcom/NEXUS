@@ -54,7 +54,9 @@ async def test_cors_options_preflight():
         # Preflight for /health
         res_preflight_health = await client.options("/health", headers=preflight_headers)
         assert res_preflight_health.status_code == 200
-        assert res_preflight_health.headers.get("access-control-allow-origin") == PROD_FRONTEND_ORIGIN
+        assert (
+            res_preflight_health.headers.get("access-control-allow-origin") == PROD_FRONTEND_ORIGIN
+        )
         assert "GET" in res_preflight_health.headers.get("access-control-allow-methods", "")
 
         # Preflight for /health/db
@@ -97,4 +99,3 @@ def test_cors_no_wildcard_in_production():
     """Verify wildcard '*' is not present in allowed CORS origins."""
     assert "*" not in settings.allowed_cors_origins
     assert PROD_FRONTEND_ORIGIN in settings.allowed_cors_origins
-
