@@ -32,14 +32,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-cors_origins = list(
-    {
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        settings.next_public_api_base_url,
-        settings.next_public_api_url,
-    }
-)
+cors_origins = settings.allowed_cors_origins
+
 
 app.add_middleware(
     CORSMiddleware,

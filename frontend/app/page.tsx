@@ -15,9 +15,97 @@ interface DbHealthState {
   timestamp?: string;
 }
 
+interface FetchResult<T> {
+  ok: boolean;
+  data?: T;
+  errorMessage?: string;
+}
+
+async function requestWithDetails<T>(
+  url: string,
+  timeoutMs: number = 10000
+): Promise<FetchResult<T>> {
+  const controller = new AbortController();
+  let isTimeout = false;
+  const timeoutId = setTimeout(() => {
+    isTimeout = true;
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const text = await res.text();
+        try {
+          const json = JSON.parse(text);
+          detail = json.message || json.detail || json.error || "";
+        } catch {
+          if (text && text.length < 120) {
+            detail = text.trim();
+          }
+        }
+      } catch {
+        // ignore body read error
+      }
+      const statusSuffix = detail
+        ? `: ${detail}`
+        : res.statusText
+          ? ` (${res.statusText})`
+          : "";
+      return {
+        ok: false,
+        errorMessage: `HTTP error response: HTTP ${res.status}${statusSuffix}`,
+      };
+    }
+
+    try {
+      const data = (await res.json()) as T;
+      return { ok: true, data };
+    } catch (parseErr: unknown) {
+      const parseMessage =
+        parseErr instanceof Error ? parseErr.message : "invalid JSON";
+      return {
+        ok: false,
+        errorMessage: `HTTP error response: Failed to parse JSON response (${parseMessage})`,
+      };
+    }
+  } catch (err: unknown) {
+    clearTimeout(timeoutId);
+    if (isTimeout || (err instanceof Error && err.name === "AbortError")) {
+      return {
+        ok: false,
+        errorMessage: `Timeout: Request timed out after ${timeoutMs / 1000}s`,
+      };
+    }
+    const rawError = err instanceof Error ? err.message : "Failed to fetch";
+    return {
+      ok: false,
+      errorMessage: `Network/CORS failure: ${rawError}`,
+    };
+  }
+}
+
 export default function Home() {
-  const apiUrl =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const defaultApiUrl =
+    process.env.NODE_ENV === "production"
+      ? "https://nexus-backend-obb9.onrender.com"
+      : "http://localhost:8000";
+
+  const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || defaultApiUrl;
+  // Ensure base URL has no trailing slash and does not have /health appended
+  const apiUrl = rawApiUrl
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/health\/?$/, "");
 
   const [apiHealth, setApiHealth] = useState<HealthState>({
     status: "loading",
@@ -32,67 +120,56 @@ export default function Home() {
     const now = new Date().toLocaleTimeString();
 
     // 1. Check API /health
-    try {
-      const res = await fetch(`${apiUrl}/health`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const data = (await res.json()) as { status: string };
+    const healthResult = await requestWithDetails<{ status: string }>(
+      `${apiUrl}/health`
+    );
+    if (healthResult.ok && healthResult.data) {
       setApiHealth({
-        status: data.status === "ok" ? "ok" : "error",
-        message: data.status,
+        status: healthResult.data.status === "ok" ? "ok" : "error",
+        message:
+          healthResult.data.status === "ok"
+            ? "200 OK (ok)"
+            : `Unexpected status: ${healthResult.data.status}`,
         timestamp: now,
       });
-    } catch (err: unknown) {
+    } else {
       setApiHealth({
         status: "error",
-        message:
-          err instanceof Error ? err.message : "Failed to reach backend",
+        message: healthResult.errorMessage || "Failed to reach backend",
         timestamp: now,
       });
     }
 
     // 2. Check Database /health/db
-    try {
-      const res = await fetch(`${apiUrl}/health/db`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-      });
-      const data = (await res.json()) as {
-        status?: string;
-        database?: string;
-        message?: string;
-      };
-      if (res.ok && data.status === "ok") {
+    const dbResult = await requestWithDetails<{
+      status?: string;
+      database?: string;
+      message?: string;
+    }>(`${apiUrl}/health/db`);
+
+    if (dbResult.ok && dbResult.data) {
+      if (dbResult.data.status === "ok") {
         setDbHealth({
           status: "ok",
-          database: data.database || "connected",
+          database: dbResult.data.database || "connected",
           timestamp: now,
         });
       } else {
         setDbHealth({
           status: "error",
-          message: data.message || `HTTP ${res.status}`,
+          message: dbResult.data.message || "Database status error",
           timestamp: now,
         });
       }
-    } catch (err: unknown) {
+    } else {
       setDbHealth({
         status: "error",
-        message:
-          err instanceof Error
-            ? err.message
-            : "Failed to query database status",
+        message: dbResult.errorMessage || "Failed to query database status",
         timestamp: now,
       });
-    } finally {
-      setChecking(false);
     }
+
+    setChecking(false);
   }, [apiUrl]);
 
   useEffect(() => {

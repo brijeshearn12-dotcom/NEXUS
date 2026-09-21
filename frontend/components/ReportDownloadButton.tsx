@@ -7,7 +7,19 @@ interface Props {
 
 export default function ReportDownloadButton({ caseId }: Props) {
   const handleDownload = async () => {
-    const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/report/${caseId}`;
+    const defaultApiUrl =
+      process.env.NODE_ENV === "production"
+        ? "https://nexus-backend-obb9.onrender.com"
+        : "http://localhost:8000";
+    const apiBase = (
+      process.env.NEXT_PUBLIC_API_URL ||
+      process.env.NEXT_PUBLIC_API_BASE_URL ||
+      defaultApiUrl
+    )
+      .trim()
+      .replace(/\/+$/, "")
+      .replace(/\/health\/?$/, "");
+    const url = `${apiBase}/report/${caseId}`;
     window.open(url, "_blank");
   };
 
