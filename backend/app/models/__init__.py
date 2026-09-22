@@ -6,6 +6,7 @@ from app.models.case import Case
 from app.models.document import Document
 from app.models.edge import Edge
 from app.models.entity import Entity
+from app.models.entity_merge import EntityMerge
 from app.models.enums import ProvenanceMethod, ProvenanceTier, VerificationStatus
 from app.models.flag import Flag
 from app.models.provenance import Provenance
@@ -17,6 +18,7 @@ __all__ = [
     "Document",
     "Edge",
     "Entity",
+    "EntityMerge",
     "Flag",
     "NexusBaseModel",
     "Provenance",

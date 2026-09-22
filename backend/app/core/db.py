@@ -83,6 +83,7 @@ COLLECTIONS = {
     "VALIDATION_RUNS": "validation_runs",
     "AUDIT_LOG": "audit_log",
 }
+ENTITY_MERGES_COLLECTION = "entity_merges"
 
 
 def get_db(db_name: str = DB_NAME) -> Any:
@@ -142,6 +143,22 @@ def ensure_indexes(database: Any | None = None) -> dict[str, list[str]]:
         idx_audit_case = db.audit_log.create_index("case_id", background=True)
         idx_audit_time = db.audit_log.create_index("timestamp", background=True)
         index_manifest["audit_log"] = [idx_audit_case, idx_audit_time]
+
+        if hasattr(db, "entity_merges"):
+            idx_merge_case = db.entity_merges.create_index("case_id", background=True)
+            idx_merge_canon = db.entity_merges.create_index("canonical_entity_id", background=True)
+            idx_merge_alias = db.entity_merges.create_index("alias_entity_id", background=True)
+            idx_merge_unique = db.entity_merges.create_index(
+                [("case_id", 1), ("canonical_entity_id", 1), ("alias_entity_id", 1)],
+                unique=True,
+                background=True,
+            )
+            index_manifest["entity_merges"] = [
+                idx_merge_case,
+                idx_merge_canon,
+                idx_merge_alias,
+                idx_merge_unique,
+            ]
 
         logger.info(
             "Canonical indexes verified on MongoDB database: %s", getattr(db, "name", "unknown")
