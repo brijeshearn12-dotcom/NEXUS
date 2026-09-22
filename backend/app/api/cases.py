@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.core.db import get_db
 from app.services.corpus_service import ingest_manual_text
+from app.services.graph.builder import build_graph_for_case, get_graph_for_case
 from app.services.resolution.alias_resolver import resolve_case_aliases
 
 logger = logging.getLogger(__name__)
@@ -149,4 +150,73 @@ async def resolve_case_entities(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Alias resolution failed: {str(err)}",
         ) from err
+
+
+class BuildGraphResponse(BaseModel):
+    case_id: str = Field(..., description="Case identifier")
+    nodes: int = Field(..., description="Number of unique nodes in the graph")
+    edges_created: int = Field(..., description="Number of new edges created")
+    edges_updated: int = Field(..., description="Number of existing edges updated/aggregated")
+
+
+class CaseGraphResponse(BaseModel):
+    nodes: list[dict[str, Any]] = Field(..., description="List of graph nodes with attributes")
+    edges: list[dict[str, Any]] = Field(..., description="List of graph edges with weights and provenance")
+
+
+@router.post(
+    "/{case_id}/build-graph",
+    summary="Construct relationship graph for a case",
+    response_model=BuildGraphResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def build_case_graph_endpoint(case_id: str) -> dict[str, Any]:
+    """Build the relationship graph for a case from extracted entities and judgment evidence."""
+    db = get_db()
+    case = db.cases.find_one({"case_id": case_id})
+    has_entities = db.entities.find_one({"case_id": case_id}) is not None
+    if not case and not has_entities:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Case with ID '{case_id}' not found.",
+        )
+
+    try:
+        res = build_graph_for_case(case_id=case_id, database=db)
+        return res
+    except Exception as err:
+        logger.error("Error building graph for case %s: %s", case_id, err, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to build graph: {str(err)}",
+        ) from err
+
+
+@router.get(
+    "/{case_id}/graph",
+    summary="Retrieve full relationship graph for a case",
+    response_model=CaseGraphResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_case_graph_endpoint(case_id: str) -> dict[str, Any]:
+    """Retrieve full relationship graph (nodes and edges with provenance and weights) for a case."""
+    db = get_db()
+    case = db.cases.find_one({"case_id": case_id})
+    has_entities = db.entities.find_one({"case_id": case_id}) is not None
+    if not case and not has_entities:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Case with ID '{case_id}' not found.",
+        )
+
+    try:
+        res = get_graph_for_case(case_id=case_id, database=db)
+        return res
+    except Exception as err:
+        logger.error("Error fetching graph for case %s: %s", case_id, err, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch graph: {str(err)}",
+        ) from err
+
 
