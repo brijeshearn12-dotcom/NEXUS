@@ -332,6 +332,13 @@ async def get_case_analysis_endpoint(case_id: str) -> dict[str, Any]:
         now_utc = datetime.now(UTC)
         for flag_item in flags:
             flag_id = flag_item["flag_id"]
+            existing_flag = db.flags.find_one({"id": flag_id})
+            persisted_status = (
+                existing_flag.get("verification_status")
+                if existing_flag and existing_flag.get("verification_status")
+                else "unverified"
+            )
+            flag_item["verification_status"] = persisted_status
             db.flags.update_one(
                 {"id": flag_id},
                 {
@@ -348,7 +355,7 @@ async def get_case_analysis_endpoint(case_id: str) -> dict[str, Any]:
                             "confidence": flag_item["trail"]["confidence"],
                             "extracted_at": now_utc,
                         },
-                        "verification_status": "unverified",
+                        "verification_status": persisted_status,
                         "updated_at": now_utc,
                         "metadata": {
                             "entity_id": flag_item["entity_id"],
@@ -614,6 +621,95 @@ async def simulate_case_what_if_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Simulation failed: {str(err)}",
         ) from err
+
+
+class FlagVerificationRequest(BaseModel):
+    verification_status: str | None = Field(None, description="'confirmed', 'rejected', or 'unverified'")
+    status: str | None = Field(None, description="Alternative alias for verification_status")
+    notes: str | None = Field(None, description="Optional analyst verification notes")
+    analyst_id: str | None = Field(None, description="Analyst identifier")
+
+
+@router.patch(
+    "/{case_id}/flags/{flag_id}/verify",
+    summary="Confirm or reject a pattern flag",
+    response_model=dict[str, Any],
+    status_code=status.HTTP_200_OK,
+)
+async def patch_flag_verification_endpoint(
+    case_id: str,
+    flag_id: str,
+    payload: FlagVerificationRequest,
+) -> dict[str, Any]:
+    """Update verification status of a pattern flag ('confirmed', 'rejected', 'unverified').
+
+    Persists directly to MongoDB `flags` collection and appends to `audit_log`.
+    """
+    from datetime import UTC, datetime
+
+    db = get_db()
+    flag = db.flags.find_one({"$or": [{"id": flag_id}, {"flag_id": flag_id}]})
+    if not flag:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Flag not found with ID: {flag_id}",
+        )
+
+    raw_status = payload.verification_status or payload.status
+    if not raw_status:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Field 'verification_status' or 'status' is required.",
+        )
+
+    target_status = raw_status.strip().lower()
+    if target_status not in {"confirmed", "rejected", "unverified"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid verification status '{target_status}'. Must be 'confirmed', 'rejected', or 'unverified'.",
+        )
+
+    now_utc = datetime.now(UTC)
+    actor = payload.analyst_id or "analyst_human"
+
+    db.flags.update_one(
+        {"$or": [{"id": flag_id}, {"flag_id": flag_id}]},
+        {
+            "$set": {
+                "verification_status": target_status,
+                "updated_at": now_utc,
+                "metadata.verification_notes": payload.notes or "",
+                "metadata.verified_by": actor,
+                "metadata.verified_at": now_utc.isoformat(),
+            }
+        },
+    )
+
+    db.audit_log.insert_one({
+        "case_id": case_id,
+        "actor": actor,
+        "action": f"{target_status}_flag",
+        "timestamp": now_utc,
+        "input_summary": {
+            "flag_id": flag_id,
+            "case_id": case_id,
+            "new_status": target_status,
+            "notes": payload.notes,
+        },
+        "result_summary": f"Flag '{flag_id}' ({flag.get('flag_type')}) marked as {target_status}",
+        "entity_type": "flag",
+        "entity_id": flag_id,
+        "verification_status": target_status,
+    })
+
+    return {
+        "status": "ok",
+        "flag_id": flag_id,
+        "case_id": case_id,
+        "verification_status": target_status,
+        "updated_at": now_utc.isoformat(),
+    }
+
 
 
 

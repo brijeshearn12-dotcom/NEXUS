@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from app.core.db import get_collection
 
@@ -68,3 +69,120 @@ async def get_entity(entity_id: str) -> dict[str, Any]:
             detail=f"Entity not found with ID: {entity_id}",
         )
     return entity
+
+
+class EntityVerificationRequest(BaseModel):
+    verification_status: str | None = Field(
+        None,
+        description="Target status: 'confirmed', 'rejected', or 'unverified'",
+    )
+    status: str | None = Field(
+        None,
+        description="Alternative alias for verification_status",
+    )
+    notes: str | None = Field(None, description="Optional verification notes from analyst")
+    analyst_id: str | None = Field(None, description="Analyst identifier")
+
+
+@router.get("/{entity_id}/verify", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
+async def get_entity_verification_status(entity_id: str) -> dict[str, Any]:
+    """Retrieve current verification state for an entity."""
+    db_entities = get_collection("entities")
+    entity = db_entities.find_one({"id": entity_id}, {"_id": 0})
+    if not entity:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity not found with ID: {entity_id}",
+        )
+    return {
+        "id": entity_id,
+        "entity_id": entity_id,
+        "name": entity.get("name"),
+        "entity_type": entity.get("entity_type"),
+        "verification_status": entity.get("verification_status", "unverified"),
+        "updated_at": entity.get("updated_at"),
+        "case_id": entity.get("case_id"),
+        "provenance": entity.get("provenance"),
+    }
+
+
+@router.patch("/{entity_id}/verify", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
+@router.patch("/{entity_id}", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
+async def patch_entity_verification(
+    entity_id: str,
+    payload: EntityVerificationRequest,
+) -> dict[str, Any]:
+    """Update verification status of an entity ('confirmed', 'rejected', 'unverified').
+
+    Persists directly to MongoDB `entities` and appends an immutable entry to `audit_log`.
+    """
+    from datetime import UTC, datetime
+
+    db_entities = get_collection("entities")
+    db_audit = get_collection("audit_log")
+
+    entity = db_entities.find_one({"id": entity_id})
+    if not entity:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity not found with ID: {entity_id}",
+        )
+
+    raw_status = payload.verification_status or payload.status
+    if not raw_status:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Field 'verification_status' or 'status' is required.",
+        )
+
+    target_status = raw_status.strip().lower()
+    if target_status not in {"confirmed", "rejected", "unverified"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid verification status '{target_status}'. Must be 'confirmed', 'rejected', or 'unverified'.",
+        )
+
+    now_utc = datetime.now(UTC)
+    actor = payload.analyst_id or "analyst_human"
+
+    db_entities.update_one(
+        {"id": entity_id},
+        {
+            "$set": {
+                "verification_status": target_status,
+                "updated_at": now_utc,
+                "metadata.verification_notes": payload.notes or "",
+                "metadata.verified_by": actor,
+                "metadata.verified_at": now_utc.isoformat(),
+            }
+        },
+    )
+
+    # Immutable audit trail
+    db_audit.insert_one({
+        "case_id": entity.get("case_id", "unknown"),
+        "actor": actor,
+        "action": f"{target_status}_entity",
+        "timestamp": now_utc,
+        "input_summary": {
+            "entity_id": entity_id,
+            "entity_name": entity.get("name"),
+            "old_status": entity.get("verification_status", "unverified"),
+            "new_status": target_status,
+            "notes": payload.notes,
+        },
+        "result_summary": f"Entity '{entity.get('name')}' marked as {target_status}",
+        "entity_type": "entity",
+        "entity_id": entity_id,
+        "verification_status": target_status,
+    })
+
+    updated = db_entities.find_one({"id": entity_id}, {"_id": 0})
+    return {
+        "status": "ok",
+        "id": entity_id,
+        "name": updated.get("name"),
+        "verification_status": target_status,
+        "updated_at": now_utc.isoformat(),
+        "entity": updated,
+    }
