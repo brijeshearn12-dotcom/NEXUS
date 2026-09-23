@@ -220,3 +220,183 @@ async def get_case_graph_endpoint(case_id: str) -> dict[str, Any]:
         ) from err
 
 
+class CaseAnalysisResponse(BaseModel):
+    status: str = Field(..., description="'ok' or 'insufficient_data'")
+    case_id: str = Field(..., description="Case identifier")
+    reason: str | None = Field(None, description="Explanation when status is insufficient_data")
+    ranked_individuals: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Ranked key individuals with centrality metrics and reasoning trails",
+    )
+    communities: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Louvain communities detected in the network",
+    )
+    flags: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Rule-based pattern flags with reasoning trails",
+    )
+    trail: dict[str, Any] | None = Field(
+        None,
+        description="Graph summary metadata, normalization formula, and legal disclaimer",
+    )
+
+
+@router.get(
+    "/{case_id}/analysis",
+    summary="Analyze relationship graph: centrality ranking, Louvain communities, and pattern flags",
+    response_model=CaseAnalysisResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_case_analysis_endpoint(case_id: str) -> dict[str, Any]:
+    """Calculate deterministic centrality rankings, Louvain communities, and pattern flags for a case graph.
+
+    Idempotent and strictly evidence-backed:
+    - Ranks only verified or plausible PERSON entities using neutral terminology
+    - Generates complete reasoning trail (input_refs, evidence, reasoning, result, confidence, source)
+    - Returns structured 'insufficient_data' if graph is smaller than minimum thresholds
+    """
+    from datetime import UTC, datetime
+
+    from app.services.analytics import (
+        detect_louvain_communities,
+        detect_pattern_flags,
+        is_valid_person_entity,
+        rank_key_individuals,
+    )
+    from app.services.analytics.centrality import (
+        MIN_GRAPH_EDGES,
+        MIN_GRAPH_NODES,
+        MIN_PERSON_NODES,
+    )
+    from app.services.graph.networkx_loader import load_case_graph
+
+    db = get_db()
+    case = db.cases.find_one({"case_id": case_id})
+    has_entities = db.entities.find_one({"case_id": case_id}) is not None
+    if not case and not has_entities:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Case with ID '{case_id}' not found.",
+        )
+
+    try:
+        G = load_case_graph(case_id=case_id, database=db)
+        num_nodes = G.number_of_nodes()
+        num_edges = G.number_of_edges()
+        person_nodes = [
+            n for n, d in G.nodes(data=True)
+            if is_valid_person_entity(n, d)
+        ]
+
+        # Minimum data guardrails
+        if num_nodes < MIN_GRAPH_NODES or num_edges < MIN_GRAPH_EDGES:
+            return {
+                "status": "insufficient_data",
+                "case_id": case_id,
+                "reason": (
+                    f"Graph has {num_nodes} node(s) and {num_edges} edge(s). "
+                    f"Minimum required: {MIN_GRAPH_NODES} nodes and {MIN_GRAPH_EDGES} edges."
+                ),
+                "ranked_individuals": [],
+                "communities": [],
+                "flags": [],
+            }
+
+        if len(person_nodes) < MIN_PERSON_NODES:
+            return {
+                "status": "insufficient_data",
+                "case_id": case_id,
+                "reason": (
+                    f"Graph contains {len(person_nodes)} valid PERSON entities. "
+                    f"Minimum required for centrality ranking: {MIN_PERSON_NODES} person."
+                ),
+                "ranked_individuals": [],
+                "communities": [],
+                "flags": [],
+            }
+
+        communities = detect_louvain_communities(G)
+        ranked_individuals = rank_key_individuals(
+            G=G,
+            case_id=case_id,
+            communities=communities,
+        )
+        flags = detect_pattern_flags(
+            G=G,
+            case_id=case_id,
+            database=db,
+        )
+
+        # Idempotently persist detected flags into MongoDB `flags` collection
+        now_utc = datetime.now(UTC)
+        for flag_item in flags:
+            flag_id = flag_item["flag_id"]
+            db.flags.update_one(
+                {"id": flag_id},
+                {
+                    "$set": {
+                        "id": flag_id,
+                        "case_id": case_id,
+                        "flag_type": flag_item["flag_type"],
+                        "description": flag_item["description"],
+                        "severity": flag_item["severity"],
+                        "provenance": {
+                            "tier": "primary",
+                            "source_ref": case_id,
+                            "method": "graph_pattern_detector",
+                            "confidence": flag_item["trail"]["confidence"],
+                            "extracted_at": now_utc,
+                        },
+                        "verification_status": "unverified",
+                        "updated_at": now_utc,
+                        "metadata": {
+                            "entity_id": flag_item["entity_id"],
+                            "canonical_name": flag_item["canonical_name"],
+                            "trail": flag_item["trail"],
+                        },
+                    },
+                    "$setOnInsert": {
+                        "created_at": now_utc,
+                    },
+                },
+                upsert=True,
+            )
+
+        trail = {
+            "graph_summary": {
+                "total_nodes": num_nodes,
+                "total_edges": num_edges,
+                "person_nodes": len(person_nodes),
+                "communities_count": len(communities),
+            },
+            "formula": "combined_score = round(0.50 * degree_norm + 0.20 * betweenness_norm + 0.30 * pagerank_norm, 4)",
+            "insufficient_data_thresholds": {
+                "min_nodes": MIN_GRAPH_NODES,
+                "min_edges": MIN_GRAPH_EDGES,
+                "min_person_nodes": MIN_PERSON_NODES,
+            },
+            "legal_notice": (
+                "Network metrics describe structural relationships in the analyzed corpus. "
+                "They do not establish guilt, intent, or legal responsibility."
+            ),
+        }
+
+        return {
+            "status": "ok",
+            "case_id": case_id,
+            "ranked_individuals": ranked_individuals,
+            "communities": communities,
+            "flags": flags,
+            "trail": trail,
+        }
+
+    except Exception as err:
+        logger.error("Analysis calculation failed for case %s: %s", case_id, err, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Analysis calculation failed: {str(err)}",
+        ) from err
+
+
+

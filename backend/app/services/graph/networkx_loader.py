@@ -59,19 +59,46 @@ def load_case_graph(case_id: str, database: Any | None = None) -> nx.Graph:
 
         # Ensure nodes exist even if cross-case or alias-canonical
         if not g.has_node(src):
-            g.add_node(src, id=src)
+            ent_doc = db.entities.find_one({"id": src})
+            if ent_doc:
+                g.add_node(
+                    src,
+                    name=ent_doc.get("name", src),
+                    entity_type=ent_doc.get("entity_type", "UNKNOWN"),
+                    verification_status=ent_doc.get("verification_status", "unverified"),
+                    aliases=ent_doc.get("aliases", []),
+                    case_id=ent_doc.get("case_id", case_id),
+                )
+            else:
+                g.add_node(src, id=src, name=src, entity_type="UNKNOWN")
         if not g.has_node(tgt):
-            g.add_node(tgt, id=tgt)
+            ent_doc = db.entities.find_one({"id": tgt})
+            if ent_doc:
+                g.add_node(
+                    tgt,
+                    name=ent_doc.get("name", tgt),
+                    entity_type=ent_doc.get("entity_type", "UNKNOWN"),
+                    verification_status=ent_doc.get("verification_status", "unverified"),
+                    aliases=ent_doc.get("aliases", []),
+                    case_id=ent_doc.get("case_id", case_id),
+                )
+            else:
+                g.add_node(tgt, id=tgt, name=tgt, entity_type="UNKNOWN")
 
         weight = float(edge.get("weight", 1.0))
         edge_type = edge.get("edge_type", edge.get("relationship_type", "associated_with"))
         edge_id = edge.get("edge_id", edge.get("id"))
         verification_status = edge.get("verification_status", "unverified")
         prov = edge.get("provenance", {})
+        evidence = edge.get("evidence", "")
+        document_ids = edge.get("document_ids", [])
+        case_ids = edge.get("case_ids", [case_id])
 
         if g.has_edge(src, tgt):
             existing_w = g[src][tgt].get("weight", 1.0)
             g[src][tgt]["weight"] = round(existing_w + weight, 2)
+            if evidence and not g[src][tgt].get("evidence"):
+                g[src][tgt]["evidence"] = evidence
         else:
             g.add_edge(
                 src,
@@ -81,6 +108,9 @@ def load_case_graph(case_id: str, database: Any | None = None) -> nx.Graph:
                 weight=weight,
                 verification_status=verification_status,
                 provenance=prov,
+                evidence=evidence,
+                document_ids=document_ids,
+                case_ids=case_ids,
             )
 
     logger.info(
