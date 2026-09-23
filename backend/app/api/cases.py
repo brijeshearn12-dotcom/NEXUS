@@ -399,4 +399,221 @@ async def get_case_analysis_endpoint(case_id: str) -> dict[str, Any]:
         ) from err
 
 
+class SimulationRequest(BaseModel):
+    exclude_node_ids: list[str] = Field(
+        default_factory=list,
+        description="List of node/entity IDs to exclude in this what-if scenario.",
+    )
+
+
+@router.post(
+    "/{case_id}/simulate",
+    summary="Run what-if scenario simulation excluding specified nodes",
+    response_description="Recalculated centrality rankings, Louvain communities, pattern flags, and impact comparison.",
+)
+async def simulate_case_what_if_endpoint(
+    case_id: str,
+    payload: SimulationRequest,
+) -> dict[str, Any]:
+    """Execute in-memory what-if scenario simulation on a case network graph.
+
+    Removes only the requested node IDs from an in-memory graph copy and recalculates
+    deterministic centrality rankings, Louvain communities, and structural pattern flags
+    using the exact same Task 5.1 analytics functions.
+
+    Guarantees:
+    - Never modifies the stored MongoDB database or graph collections.
+    - Operates purely in-memory on a graph copy.
+    - Handles invalid case IDs (404), unknown nodes, empty exclusions, and tiny/disconnected fallback.
+    - Returns comprehensive before/after comparison metrics.
+    """
+    from app.services.analytics import (
+        detect_louvain_communities,
+        detect_pattern_flags,
+        is_valid_person_entity,
+        rank_key_individuals,
+    )
+    from app.services.analytics.centrality import (
+        MIN_GRAPH_EDGES,
+        MIN_GRAPH_NODES,
+        MIN_PERSON_NODES,
+    )
+    from app.services.graph.networkx_loader import load_case_graph
+
+    db = get_db()
+    case = db.cases.find_one({"case_id": case_id})
+    has_entities = db.entities.find_one({"case_id": case_id}) is not None
+    if not case and not has_entities:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Case with ID '{case_id}' not found.",
+        )
+
+    try:
+        G_orig = load_case_graph(case_id=case_id, database=db)
+        num_orig_nodes = G_orig.number_of_nodes()
+        num_orig_edges = G_orig.number_of_edges()
+        person_nodes_orig = [
+            n for n, d in G_orig.nodes(data=True)
+            if is_valid_person_entity(n, d)
+        ]
+
+        # Check original graph baseline
+        if num_orig_nodes < MIN_GRAPH_NODES or num_orig_edges < MIN_GRAPH_EDGES:
+            return {
+                "status": "insufficient_data",
+                "case_id": case_id,
+                "reason": (
+                    f"Original graph has {num_orig_nodes} node(s) and {num_orig_edges} edge(s). "
+                    f"Minimum required: {MIN_GRAPH_NODES} nodes and {MIN_GRAPH_EDGES} edges."
+                ),
+                "excluded_node_ids": payload.exclude_node_ids or [],
+                "original_top_individuals": [],
+                "simulated_top_individuals": [],
+                "communities": [],
+                "flags": [],
+                "changed": False,
+            }
+
+        # Baseline analytics
+        orig_communities = detect_louvain_communities(G_orig)
+        orig_ranked = rank_key_individuals(
+            G=G_orig,
+            case_id=case_id,
+            communities=orig_communities,
+        )
+
+        # Make in-memory copy for simulation (never touches MongoDB)
+        G_sim = G_orig.copy()
+
+        requested_exclusions = payload.exclude_node_ids or []
+        actually_removed = [nid for nid in requested_exclusions if G_sim.has_node(nid)]
+        unknown_nodes = [nid for nid in requested_exclusions if not G_sim.has_node(nid)]
+
+        for nid in actually_removed:
+            G_sim.remove_node(nid)
+
+        sim_nodes_count = G_sim.number_of_nodes()
+        sim_edges_count = G_sim.number_of_edges()
+        sim_person_nodes = [
+            n for n, d in G_sim.nodes(data=True)
+            if is_valid_person_entity(n, d)
+        ]
+
+        # Handle post-exclusion insufficient data
+        if sim_nodes_count < MIN_GRAPH_NODES or sim_edges_count < MIN_GRAPH_EDGES:
+            return {
+                "status": "insufficient_data",
+                "case_id": case_id,
+                "reason": (
+                    f"Simulated graph has {sim_nodes_count} node(s) and {sim_edges_count} edge(s) remaining after exclusion. "
+                    f"Minimum required: {MIN_GRAPH_NODES} nodes and {MIN_GRAPH_EDGES} edges."
+                ),
+                "excluded_node_ids": requested_exclusions,
+                "actually_removed_node_ids": actually_removed,
+                "unknown_node_ids": unknown_nodes,
+                "original_top_individuals": orig_ranked[:10],
+                "simulated_top_individuals": [],
+                "communities": [],
+                "flags": [],
+                "changed": len(actually_removed) > 0,
+                "impact_summary": {
+                    "requested_exclusions_count": len(requested_exclusions),
+                    "removed_nodes_count": len(actually_removed),
+                    "remaining_nodes": sim_nodes_count,
+                    "remaining_edges": sim_edges_count,
+                    "remaining_person_nodes": len(sim_person_nodes),
+                },
+            }
+
+        if len(sim_person_nodes) < MIN_PERSON_NODES:
+            return {
+                "status": "insufficient_data",
+                "case_id": case_id,
+                "reason": (
+                    f"Simulated graph has {len(sim_person_nodes)} valid PERSON entities remaining. "
+                    f"Minimum required: {MIN_PERSON_NODES} person."
+                ),
+                "excluded_node_ids": requested_exclusions,
+                "actually_removed_node_ids": actually_removed,
+                "unknown_node_ids": unknown_nodes,
+                "original_top_individuals": orig_ranked[:10],
+                "simulated_top_individuals": [],
+                "communities": [],
+                "flags": [],
+                "changed": len(actually_removed) > 0,
+            }
+
+        # Run exact Task 5.1 analytics on simulated graph
+        sim_communities = detect_louvain_communities(G_sim)
+        sim_ranked = rank_key_individuals(
+            G=G_sim,
+            case_id=case_id,
+            communities=sim_communities,
+        )
+        # In-memory flags detection (strictly without writing to MongoDB)
+        sim_flags = detect_pattern_flags(
+            G=G_sim,
+            case_id=case_id,
+            database=db,
+        )
+
+        orig_top_ids = [r["entity_id"] for r in orig_ranked[:10]]
+        sim_top_ids = [r["entity_id"] for r in sim_ranked[:10]]
+        orig_top_scores = {r["entity_id"]: r["combined_score"] for r in orig_ranked[:10]}
+        sim_top_scores = {r["entity_id"]: r["combined_score"] for r in sim_ranked[:10]}
+
+        rankings_changed = (orig_top_ids != sim_top_ids) or any(
+            abs(orig_top_scores.get(eid, 0.0) - sim_top_scores.get(eid, 0.0)) > 0.0001
+            for eid in sim_top_ids
+        )
+        communities_changed = len(orig_communities) != len(sim_communities) or (
+            [c["member_ids"] for c in orig_communities] != [c["member_ids"] for c in sim_communities]
+        )
+        changed = bool(actually_removed) and (rankings_changed or communities_changed)
+
+        impact_summary = {
+            "requested_exclusions_count": len(requested_exclusions),
+            "removed_nodes_count": len(actually_removed),
+            "original_nodes": num_orig_nodes,
+            "simulated_nodes": sim_nodes_count,
+            "original_edges": num_orig_edges,
+            "simulated_edges": sim_edges_count,
+            "original_communities_count": len(orig_communities),
+            "simulated_communities_count": len(sim_communities),
+            "rankings_changed": rankings_changed,
+            "communities_changed": communities_changed,
+        }
+
+        return {
+            "status": "ok",
+            "case_id": case_id,
+            "excluded_node_ids": requested_exclusions,
+            "actually_removed_node_ids": actually_removed,
+            "unknown_node_ids": unknown_nodes,
+            "original_top_individuals": orig_ranked[:10],
+            "simulated_top_individuals": sim_ranked[:10],
+            "communities": sim_communities,
+            "flags": sim_flags,
+            "changed": changed,
+            "impact_summary": impact_summary,
+            "trail": {
+                "method": "in_memory_what_if_simulation",
+                "db_modified": False,
+                "formula": "combined_score = round(0.50 * degree_norm + 0.20 * betweenness_norm + 0.30 * pagerank_norm, 4)",
+                "legal_notice": (
+                    "Simulation recalculates structural network metrics on a hypothetical subgraph. "
+                    "It does not establish guilt, intent, or legal responsibility."
+                ),
+            },
+        }
+
+    except Exception as err:
+        logger.error("Simulation failed for case %s: %s", case_id, err, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Simulation failed: {str(err)}",
+        ) from err
+
+
 

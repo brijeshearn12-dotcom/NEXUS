@@ -21,8 +21,8 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 DB_NAME = "nexus_criminal_network"
-CONNECT_TIMEOUT_MS = 5000
-SERVER_SELECTION_TIMEOUT_MS = 5000
+CONNECT_TIMEOUT_MS = 10000
+SERVER_SELECTION_TIMEOUT_MS = 10000
 
 _client: MongoClient[Any] | None = None
 
