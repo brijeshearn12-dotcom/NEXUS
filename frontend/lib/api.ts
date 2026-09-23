@@ -377,3 +377,157 @@ export async function verifyFlag(
     }
   );
 }
+
+// ==========================================
+// Task 6.2 — Guided Flow, Audit Trail, Validation & What-If
+// ==========================================
+
+export interface AuditLogItem {
+  id: string;
+  case_id?: string;
+  actor: string;
+  action: string;
+  timestamp: string;
+  result_summary?: string;
+  entity_type?: string;
+  entity_id?: string;
+  verification_status?: string;
+  input_summary?: Record<string, unknown>;
+}
+
+export interface AuditTrailResponse {
+  case_id: string;
+  total: number;
+  items: AuditLogItem[];
+}
+
+export interface ValidationDatasetInfo {
+  name: string;
+  network_type?: string;
+  node_count?: number;
+  edge_count?: number;
+  relationship_categories?: string[];
+}
+
+export interface ValidationSourceReference {
+  citation?: string;
+  primary_source_document?: string;
+  academic_reference?: string;
+  doi?: string;
+  source_repository?: string;
+}
+
+export interface ValidationResponse {
+  status: string;
+  dataset: ValidationDatasetInfo;
+  source_reference: ValidationSourceReference;
+  ground_truth_count: number;
+  top_k: number;
+  matches: number;
+  score: string;
+  validation_limitations: string[];
+  legal_notice?: string;
+}
+
+export interface SimulationImpactSummary {
+  requested_exclusions_count: number;
+  removed_nodes_count: number;
+  original_nodes?: number;
+  simulated_nodes?: number;
+  original_edges?: number;
+  simulated_edges?: number;
+  original_communities_count?: number;
+  simulated_communities_count?: number;
+  rankings_changed?: boolean;
+  communities_changed?: boolean;
+}
+
+export interface SimulationResponse {
+  status: string;
+  case_id: string;
+  reason?: string;
+  excluded_node_ids: string[];
+  actually_removed_node_ids?: string[];
+  unknown_node_ids?: string[];
+  original_top_individuals: RankedIndividual[];
+  simulated_top_individuals: RankedIndividual[];
+  communities: CommunityData[];
+  flags: PatternFlagItem[];
+  changed: boolean;
+  impact_summary?: SimulationImpactSummary;
+}
+
+export interface CaseExtractResult {
+  case_id: string;
+  status: string;
+  documents_count: number;
+  entities_extracted: number;
+  already_extracted: boolean;
+  message: string;
+}
+
+export interface CaseResolveResult {
+  case_id: string;
+  entities_checked: number;
+  candidate_pairs: number;
+  merges_created: number;
+  merges_skipped: number;
+}
+
+export interface CaseBuildGraphResult {
+  case_id: string;
+  nodes: number;
+  edges_created: number;
+  edges_updated: number;
+}
+
+export async function extractCase(
+  caseId: string,
+  enableGeminiFallback: boolean = true
+): Promise<FetchResult<CaseExtractResult>> {
+  return apiRequest<CaseExtractResult>(
+    `/api/cases/${caseId}/extract?enable_gemini_fallback=${enableGeminiFallback}`,
+    { method: "POST" },
+    60000
+  );
+}
+
+export async function resolveCaseAliases(
+  caseId: string,
+  threshold: number = 0.85
+): Promise<FetchResult<CaseResolveResult>> {
+  return apiRequest<CaseResolveResult>(
+    `/api/cases/${caseId}/resolve?threshold=${threshold}`,
+    { method: "POST" },
+    45000
+  );
+}
+
+export async function buildCaseGraph(caseId: string): Promise<FetchResult<CaseBuildGraphResult>> {
+  return apiRequest<CaseBuildGraphResult>(
+    `/api/cases/${caseId}/build-graph`,
+    { method: "POST" },
+    45000
+  );
+}
+
+export async function fetchCaseAudit(
+  caseId: string,
+  limit: number = 100
+): Promise<FetchResult<AuditTrailResponse>> {
+  return apiRequest<AuditTrailResponse>(`/api/cases/${caseId}/audit?limit=${limit}`);
+}
+
+export async function fetchValidationResult(): Promise<FetchResult<ValidationResponse>> {
+  return apiRequest<ValidationResponse>("/api/validate");
+}
+
+export async function simulateCase(
+  caseId: string,
+  excludeNodeIds: string[]
+): Promise<FetchResult<SimulationResponse>> {
+  return apiRequest<SimulationResponse>(`/api/cases/${caseId}/simulate`, {
+    method: "POST",
+    body: JSON.stringify({ exclude_node_ids: excludeNodeIds }),
+  });
+}

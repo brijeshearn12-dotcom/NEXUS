@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import logging
 from typing import Any
 
@@ -102,6 +103,114 @@ async def ingest_case_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to ingest document due to an internal server error.",
         ) from err
+
+
+class CaseExtractionResponse(BaseModel):
+    case_id: str = Field(..., description="Case identifier")
+    status: str = Field(..., description="'ok' or 'failed'")
+    documents_count: int = Field(..., description="Number of documents associated with case")
+    entities_extracted: int = Field(..., description="Total entities extracted")
+    already_extracted: bool = Field(..., description="True if entities already existed in database")
+    message: str = Field(..., description="Readable status message")
+
+
+@router.post(
+    "/{case_id}/extract",
+    summary="Extract entities across all documents for a case",
+    response_model=CaseExtractionResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def extract_case_endpoint(
+    case_id: str,
+    enable_gemini_fallback: bool = Query(default=True, description="Enable Gemini LLM fallback"),
+) -> dict[str, Any]:
+    """Execute entity extraction for all documents in a case.
+    
+    Idempotent: If entities already exist, reports already_extracted=True without duplicating data.
+    Logs authoritative audit events in `db.audit_log`.
+    """
+    from datetime import UTC, datetime
+    from app.services.extraction.service import extract_and_store_document
+
+    db = get_db()
+    case = db.cases.find_one({"case_id": case_id})
+    docs = list(db.documents.find({"case_id": case_id}, {"id": 1, "_id": 0}))
+
+    if not case and not docs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Case with ID '{case_id}' not found.",
+        )
+
+    existing_entities_count = db.entities.count_documents({"case_id": case_id})
+    now_utc = datetime.now(UTC)
+
+    if existing_entities_count > 0:
+        db.audit_log.insert_one({
+            "case_id": case_id,
+            "actor": "analyst_guided_flow",
+            "action": "extraction_verified_existing",
+            "timestamp": now_utc,
+            "input_summary": {"case_id": case_id, "documents_count": len(docs)},
+            "result_summary": f"Case entities already present ({existing_entities_count} entities).",
+            "entity_type": "case_entities",
+            "entity_id": case_id,
+            "verification_status": "unverified",
+        })
+        return {
+            "case_id": case_id,
+            "status": "ok",
+            "documents_count": len(docs),
+            "entities_extracted": existing_entities_count,
+            "already_extracted": True,
+            "message": f"Case already has {existing_entities_count} extracted entities.",
+        }
+
+    # Extract all documents for case
+    total_extracted = 0
+    db.audit_log.insert_one({
+        "case_id": case_id,
+        "actor": "analyst_guided_flow",
+        "action": "extraction_started",
+        "timestamp": now_utc,
+        "input_summary": {"case_id": case_id, "documents_count": len(docs)},
+        "result_summary": f"Started entity extraction across {len(docs)} document(s)",
+        "entity_type": "case_entities",
+        "entity_id": case_id,
+        "verification_status": "unverified",
+    })
+
+    for d in docs:
+        try:
+            res = extract_and_store_document(
+                document_id=d["id"],
+                enable_gemini_fallback=enable_gemini_fallback,
+            )
+            total_extracted += res.get("entities_extracted", 0)
+        except Exception as exc:
+            logger.warning("Extraction error for doc %s in case %s: %s", d["id"], case_id, exc)
+
+    completion_time = datetime.now(UTC)
+    db.audit_log.insert_one({
+        "case_id": case_id,
+        "actor": "analyst_guided_flow",
+        "action": "extraction_completed",
+        "timestamp": completion_time,
+        "input_summary": {"case_id": case_id, "documents_count": len(docs)},
+        "result_summary": f"Entity extraction completed: {total_extracted} entities extracted",
+        "entity_type": "case_entities",
+        "entity_id": case_id,
+        "verification_status": "unverified",
+    })
+
+    return {
+        "case_id": case_id,
+        "status": "ok",
+        "documents_count": len(docs),
+        "entities_extracted": total_extracted,
+        "already_extracted": False,
+        "message": f"Extracted {total_extracted} entities from {len(docs)} documents.",
+    }
 
 
 class AliasResolutionResponse(BaseModel):
@@ -389,6 +498,27 @@ async def get_case_analysis_endpoint(case_id: str) -> dict[str, Any]:
             ),
         }
 
+        # Authoritative audit log entry for network analysis
+        db.audit_log.insert_one({
+            "case_id": case_id,
+            "actor": "analytics_engine",
+            "action": "network_analysis_completed",
+            "timestamp": now_utc,
+            "input_summary": {
+                "case_id": case_id,
+                "nodes": num_nodes,
+                "edges": num_edges,
+                "person_nodes": len(person_nodes),
+            },
+            "result_summary": (
+                f"Network analysis completed: {len(ranked_individuals)} ranked key individuals, "
+                f"{len(communities)} Louvain communities, {len(flags)} pattern flags."
+            ),
+            "entity_type": "case_analysis",
+            "entity_id": case_id,
+            "verification_status": "unverified",
+        })
+
         return {
             "status": "ok",
             "case_id": case_id,
@@ -592,6 +722,27 @@ async def simulate_case_what_if_endpoint(
             "communities_changed": communities_changed,
         }
 
+        # Authoritative audit log entry for what-if simulation
+        now_sim = datetime.now(UTC)
+        db.audit_log.insert_one({
+            "case_id": case_id,
+            "actor": "analyst_simulation",
+            "action": "what_if_simulation_executed",
+            "timestamp": now_sim,
+            "input_summary": {
+                "case_id": case_id,
+                "excluded_node_ids": requested_exclusions,
+            },
+            "result_summary": (
+                f"Simulated removal of {len(actually_removed)} node(s). "
+                f"Impact: {sim_nodes_count} remaining nodes, {sim_edges_count} edges, "
+                f"changed={changed}."
+            ),
+            "entity_type": "simulation",
+            "entity_id": case_id,
+            "verification_status": "unverified",
+        })
+
         return {
             "status": "ok",
             "case_id": case_id,
@@ -708,6 +859,68 @@ async def patch_flag_verification_endpoint(
         "case_id": case_id,
         "verification_status": target_status,
         "updated_at": now_utc.isoformat(),
+    }
+
+
+class AuditTrailItem(BaseModel):
+    id: str = Field(..., description="Unique audit event ID")
+    case_id: str | None = Field(None, description="Case identifier")
+    actor: str = Field(..., description="System service or analyst ID")
+    action: str = Field(..., description="Canonical action type")
+    timestamp: str = Field(..., description="ISO 8601 event timestamp")
+    result_summary: str | None = Field(None, description="Human-readable event summary")
+    entity_type: str | None = Field(None, description="Target entity type")
+    entity_id: str | None = Field(None, description="Target entity or flag ID")
+    verification_status: str | None = Field(None, description="Verification status if applicable")
+    input_summary: dict[str, Any] | None = Field(None, description="Input parameters")
+
+
+class AuditTrailResponse(BaseModel):
+    case_id: str
+    total: int
+    items: list[dict[str, Any]]
+
+
+@router.get(
+    "/{case_id}/audit",
+    summary="Retrieve read-only audit trail for a case",
+    response_model=AuditTrailResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_case_audit_trail_endpoint(
+    case_id: str,
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict[str, Any]:
+    """Retrieve chronological, read-only audit log events for this case.
+
+    Includes authoritative records for:
+    - Entity extraction (started, completed, verified)
+    - Alias resolution
+    - Relationship graph construction
+    - Network analysis calculations
+    - Analyst verification decisions (confirm, reject)
+    - What-If simulations executed
+
+    Strictly read-only: no frontend modification, editing, or deletion is permitted.
+    """
+    db = get_db()
+    query = {"$or": [{"case_id": case_id}, {"case_id": "corpus_batch"}]}
+    cursor = db.audit_log.find(query).sort("timestamp", -1).limit(limit)
+
+    items = []
+    for doc in cursor:
+        doc_id = str(doc.pop("_id", ""))
+        ts = doc.get("timestamp")
+        if hasattr(ts, "isoformat"):
+            doc["timestamp"] = ts.isoformat()
+        elif ts is None:
+            doc["timestamp"] = ""
+        items.append({"id": doc_id, **doc})
+
+    return {
+        "case_id": case_id,
+        "total": len(items),
+        "items": items,
     }
 
 
