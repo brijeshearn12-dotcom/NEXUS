@@ -531,3 +531,61 @@ export async function simulateCase(
     body: JSON.stringify({ exclude_node_ids: excludeNodeIds }),
   });
 }
+
+export interface SyntheticSummaryResponse {
+  case_id: string;
+  total_edges: number;
+  synthetic_edges: number;
+  primary_edges: number;
+  synthetic_cdr_count: number;
+  synthetic_transaction_count: number;
+  has_synthetic_data: boolean;
+}
+
+export interface SyntheticGenerateResult {
+  status: string;
+  case_id: string;
+  cdr_count: number;
+  transaction_count: number;
+  total_generated: number;
+  message: string;
+}
+
+export interface SyntheticClearResult {
+  status: string;
+  case_id: string;
+  deleted_count: number;
+  message: string;
+}
+
+export async function fetchCaseSyntheticSummary(
+  caseId: string
+): Promise<FetchResult<SyntheticSummaryResponse>> {
+  return apiRequest<SyntheticSummaryResponse>(`/api/cases/${caseId}/synthetic/summary`);
+}
+
+export async function generateCaseSynthetic(
+  caseId: string,
+  cdrCount: number = 5,
+  transactionCount: number = 5
+): Promise<FetchResult<SyntheticGenerateResult>> {
+  return apiRequest<SyntheticGenerateResult>(
+    `/api/cases/${caseId}/synthetic/generate`,
+    {
+      method: "POST",
+      body: JSON.stringify({ cdr_count: cdrCount, transaction_count: transactionCount }),
+    },
+    30000
+  );
+}
+
+export async function clearCaseSynthetic(
+  caseId: string
+): Promise<FetchResult<SyntheticClearResult>> {
+  return apiRequest<SyntheticClearResult>(
+    `/api/cases/${caseId}/synthetic`,
+    { method: "DELETE" },
+    20000
+  );
+}
+

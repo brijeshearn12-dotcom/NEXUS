@@ -123,15 +123,15 @@ export default function ProvenanceLegend() {
         <div className="mt-1.5 space-y-1.5">
           <div className="flex items-center gap-2">
             <div className="h-0.5 w-6 bg-slate-300" />
-            <span>Primary Evidence (Direct co-occurrence)</span>
+            <span>Primary Evidence (Direct judicial record)</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-0.5 w-6 border-b border-dashed border-slate-400" />
-            <span>Synthetic / Inferred relationship</span>
+            <div className="h-0.5 w-6 border-b border-dashed border-cyan-400" />
+            <span className="text-cyan-300">Synthetic CDR / Financial Txn</span>
           </div>
         </div>
-        <p className="mt-1 text-[10px] text-slate-400 italic">
-          Line thickness scales with relationship weight / co-occurrence count
+        <p className="mt-1.5 text-[10px] text-amber-300/90 leading-tight">
+          * Dashed edges represent synthetic demonstration data generated via Faker. Not real-world evidence.
         </p>
       </div>
     </aside>

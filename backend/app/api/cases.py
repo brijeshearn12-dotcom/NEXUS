@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from app.core.db import get_db
@@ -922,6 +922,134 @@ async def get_case_audit_trail_endpoint(
         "total": len(items),
         "items": items,
     }
+
+
+class SyntheticGenerateRequest(BaseModel):
+    cdr_count: int = Field(default=5, ge=1, le=50, description="Number of synthetic CDR edges to generate")
+    transaction_count: int = Field(default=5, ge=1, le=50, description="Number of synthetic transaction edges to generate")
+
+
+@router.post(
+    "/{case_id}/synthetic/generate",
+    summary="Generate synthetic CDR and financial transaction relationships",
+    status_code=status.HTTP_200_OK,
+)
+async def generate_case_synthetic_endpoint(
+    case_id: str,
+    payload: SyntheticGenerateRequest | None = None,
+) -> dict[str, Any]:
+    """Generate synthetic CDR and Transaction edges connecting existing entities in this case.
+
+    STRICT CONSTRAINTS:
+    - Never invents new entities. Operates strictly on existing case entities from MongoDB.
+    - Explicitly marks all edges with tier='synthetic', method='faker', and source_ref='synthetic-demo'.
+    - Logs an authoritative record in the case audit trail.
+    - Demonstrates multi-modal graph analysis without falsifying real-world evidence.
+    """
+    from app.services.synthetic import generate_case_synthetic_bridge
+
+    db = get_db()
+    req = payload or SyntheticGenerateRequest()
+    try:
+        result = generate_case_synthetic_bridge(
+            case_id=case_id,
+            cdr_count=req.cdr_count,
+            transaction_count=req.transaction_count,
+            database=db,
+        )
+        return result
+    except ValueError as val_err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(val_err),
+        ) from val_err
+    except Exception as err:
+        logger.error("Failed to generate synthetic data for case %s: %s", case_id, err, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Synthetic generation failed: {str(err)}",
+        ) from err
+
+
+@router.delete(
+    "/{case_id}/synthetic",
+    summary="Clear all synthetic demonstration relationships for a case",
+    status_code=status.HTTP_200_OK,
+)
+async def clear_case_synthetic_endpoint(case_id: str) -> dict[str, Any]:
+    """Remove all synthetic demonstration relationships from the case to restore pure evidentiary baseline."""
+    from app.services.synthetic import clear_case_synthetic_bridge
+
+    db = get_db()
+    try:
+        result = clear_case_synthetic_bridge(case_id=case_id, database=db)
+        return result
+    except Exception as err:
+        logger.error("Failed to clear synthetic data for case %s: %s", case_id, err, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear synthetic data: {str(err)}",
+        ) from err
+
+
+@router.get(
+    "/{case_id}/synthetic/summary",
+    summary="Get summary of synthetic vs real edges for a case",
+    status_code=status.HTTP_200_OK,
+)
+async def get_case_synthetic_summary_endpoint(case_id: str) -> dict[str, Any]:
+    """Retrieve counts and breakdown of synthetic CDR and transaction edges."""
+    from app.services.synthetic import get_case_synthetic_summary
+
+    db = get_db()
+    return get_case_synthetic_summary(case_id=case_id, database=db)
+
+
+@router.get(
+    "/{case_id}/report",
+    summary="Download Investigation Dossier PDF",
+    response_class=Response,
+    status_code=status.HTTP_200_OK,
+)
+@router.post(
+    "/{case_id}/report",
+    summary="Generate and Download Investigation Dossier PDF",
+    response_class=Response,
+    status_code=status.HTTP_200_OK,
+)
+async def get_case_investigation_report_pdf(case_id: str) -> Response:
+    """Generate and download a comprehensive, professional Law Enforcement Investigation Dossier in PDF format."""
+    from app.services.report_generator import generate_case_pdf_report
+
+    db = get_db()
+    case = db.cases.find_one({"case_id": case_id}) or db.cases.find_one({"id": case_id})
+    has_entities = db.entities.find_one({"case_id": case_id}) is not None
+
+    if not case and not has_entities:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Case with ID '{case_id}' not found.",
+        )
+
+    try:
+        pdf_bytes = generate_case_pdf_report(case_id=case_id, database=db)
+        filename = f"NEXUS_Investigation_Dossier_{case_id}.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Type": "application/pdf",
+                "X-Report-Case-ID": case_id,
+            },
+        )
+    except Exception as err:
+        logger.error("Failed to generate PDF report for case %s: %s", case_id, err, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate PDF report: {str(err)}",
+        ) from err
+
 
 
 

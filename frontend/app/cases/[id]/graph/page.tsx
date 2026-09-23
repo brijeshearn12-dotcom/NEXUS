@@ -22,6 +22,8 @@ import AuditTrailPanel from "@/components/AuditTrailPanel";
 import ValidationBadge from "@/components/ValidationBadge";
 import WhatIfControl from "@/components/WhatIfControl";
 import GuidedFlowModal from "@/components/GuidedFlowModal";
+import ReportDownloadButton from "@/components/ReportDownloadButton";
+import SyntheticBridgeControl from "@/components/SyntheticBridgeControl";
 
 interface Props {
   params: { id: string };
@@ -38,7 +40,7 @@ export default function CaseGraphPage({ params }: Props) {
 
   // Active tab in sidebar
   const [activeTab, setActiveTab] = useState<
-    "inspector" | "individuals" | "flags" | "audit" | "legend"
+    "inspector" | "individuals" | "flags" | "audit" | "bridge" | "legend"
   >("inspector");
 
   // Loading & refresh states
@@ -260,6 +262,9 @@ export default function CaseGraphPage({ params }: Props) {
             <span>⚡ Analyse Case</span>
           </button>
 
+          {/* Real Task 7.1 PDF Investigation Report Download */}
+          <ReportDownloadButton caseId={caseId} />
+
           {/* Curated Case Switcher */}
           <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-400">
             <span>Demo:</span>
@@ -402,6 +407,19 @@ export default function CaseGraphPage({ params }: Props) {
 
             <button
               type="button"
+              onClick={() => setActiveTab("bridge")}
+              className={`flex-1 py-2 text-center transition-colors border-b-2 ${
+                activeTab === "bridge"
+                  ? "border-cyan-500 font-bold text-white bg-slate-800/60"
+                  : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+              }`}
+              title="Synthetic CDR and financial transaction bridge (Demo)"
+            >
+              Bridge
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab("legend")}
               className={`flex-1 py-2 text-center transition-colors border-b-2 ${
                 activeTab === "legend"
@@ -450,6 +468,15 @@ export default function CaseGraphPage({ params }: Props) {
                 caseId={caseId}
                 refreshTrigger={auditTrigger}
               />
+            )}
+
+            {activeTab === "bridge" && (
+              <div className="space-y-3">
+                <SyntheticBridgeControl
+                  caseId={caseId}
+                  onUpdated={() => loadData(true)}
+                />
+              </div>
             )}
 
             {activeTab === "legend" && <ProvenanceLegend />}

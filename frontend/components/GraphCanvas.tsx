@@ -110,7 +110,10 @@ export default function GraphCanvas({
       const isSynthetic =
         edge.provenance?.tier === "synthetic" ||
         edge.provenance?.tier === "tier_3" ||
-        edge.edge_type === "inferred";
+        edge.edge_type === "inferred" ||
+        edge.edge_type === "SYNTHETIC_CDR" ||
+        edge.edge_type === "SYNTHETIC_TRANSACTION" ||
+        (typeof edge.edge_type === "string" && edge.edge_type.toUpperCase().includes("SYNTHETIC"));
       const width = Math.min(6, Math.max(1.5, (edge.weight || 1) * 1.5));
 
       elements.push({
@@ -211,7 +214,25 @@ export default function GraphCanvas({
             "line-style": "dashed",
             "line-dash-pattern": [6, 4],
             "line-color": "#94A3B8",
-            opacity: 0.55,
+            opacity: 0.65,
+          },
+        },
+        {
+          selector: 'edge[edge_type = "SYNTHETIC_CDR"]',
+          style: {
+            "line-style": "dashed",
+            "line-dash-pattern": [5, 3],
+            "line-color": "#06B6D4",
+            opacity: 0.85,
+          },
+        },
+        {
+          selector: 'edge[edge_type = "SYNTHETIC_TRANSACTION"]',
+          style: {
+            "line-style": "dashed",
+            "line-dash-pattern": [5, 3],
+            "line-color": "#10B981",
+            opacity: 0.85,
           },
         },
         {
