@@ -14,22 +14,27 @@ from __future__ import annotations
 
 import logging
 import sys
-from unittest.mock import MagicMock, patch
-
-import httpx
-from fastapi.testclient import TestClient
+from pathlib import Path
+from unittest.mock import patch
 
 # Ensure backend imports work
-from app.core.db import get_db
-from app.main import app
-from app.services.extraction.llm_fallback import call_gemini_api
-from app.services.extraction.service import run_extraction_pipeline_on_text
-from app.services.geocoding.nominatim_client import (
+backend_dir = str(Path(__file__).resolve().parent.parent / "backend")
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
+import httpx  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.core.db import get_db  # noqa: E402
+from app.main import app  # noqa: E402
+from app.services.extraction.llm_fallback import call_gemini_api  # noqa: E402
+from app.services.extraction.service import run_extraction_pipeline_on_text  # noqa: E402
+from app.services.geocoding.nominatim_client import (  # noqa: E402
     _GEOCODE_CACHE,
     enrich_entity_with_geocoding,
     geocode_location,
 )
-from scripts.verify_provenance_integrity import verify_provenance_integrity
+from scripts.verify_provenance_integrity import verify_provenance_integrity  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("task81_runner")

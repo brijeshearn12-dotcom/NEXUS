@@ -10,6 +10,7 @@ pydantic-settings>=2.6.0
 #   b) conda: conda install -c conda-forge spacy
 #   c) Wait for spaCy 3.8+ which adds Py3.14 wheels.
 spacy>=3.8.0
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 networkx==3.3
 python-louvain==0.16
 rapidfuzz==3.9.3

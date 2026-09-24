@@ -57,10 +57,17 @@ def get_spacy_nlp() -> Any:
             "Install it via: pip install spacy>=3.8.0"
         ) from err
     except OSError as err:
-        raise RuntimeError(
-            "The spaCy language model 'en_core_web_sm' was not found on this system. "
-            "Please download it by executing: python -m spacy download en_core_web_sm"
-        ) from err
+        try:
+            logger.info("en_core_web_sm not found, attempting auto-download via spacy.cli.download...")
+            from spacy.cli import download
+            download("en_core_web_sm")
+            _SPACY_NLP = spacy.load("en_core_web_sm")
+            return _SPACY_NLP
+        except Exception:
+            raise RuntimeError(
+                "The spaCy language model 'en_core_web_sm' was not found on this system. "
+                "Please download it by executing: python -m spacy download en_core_web_sm"
+            ) from err
 
 
 def extract_spacy_entities(

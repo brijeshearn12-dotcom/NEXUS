@@ -6,9 +6,15 @@ SIH26189GREEN | AI-Powered Criminal Network Analysis System
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Any
 
-from app.core.db import get_db
+# Ensure backend directory is in sys.path
+backend_dir = str(Path(__file__).resolve().parent.parent / "backend")
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
+from app.core.db import get_db  # noqa: E402
 
 
 def verify_provenance_integrity(database: Any | None = None) -> tuple[int, int, int]:
