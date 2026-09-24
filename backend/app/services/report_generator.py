@@ -14,9 +14,9 @@ using ReportLab, including:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import io
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from reportlab.lib.colors import HexColor
@@ -37,7 +37,6 @@ from app.core.db import get_db
 from app.services.analytics import (
     detect_louvain_communities,
     detect_pattern_flags,
-    is_valid_person_entity,
     rank_key_individuals,
 )
 from app.services.graph.networkx_loader import load_case_graph
@@ -123,8 +122,6 @@ def generate_case_pdf_report(case_id: str, database: Any | None = None) -> bytes
     # 1. Fetch Case & Document metadata
     case_doc = db.cases.find_one({"case_id": case_id}) or db.cases.find_one({"id": case_id}) or {}
     case_title = case_doc.get("title") or f"Investigation Case {case_id}"
-    case_description = case_doc.get("description") or "Multi-jurisdictional criminal network intelligence dossier."
-    case_created = case_doc.get("created_at", datetime.now(UTC))
 
     docs_cursor = list(db.documents.find({"case_id": case_id}, {"_id": 0}))
     entities = list(db.entities.find({"case_id": case_id}, {"_id": 0}))

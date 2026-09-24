@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class VerificationStatus(str, Enum):
+class VerificationStatus(StrEnum):
     """Canonical verification status for all provenance-aware NEXUS models.
 
     Allowed values:
@@ -19,7 +19,7 @@ class VerificationStatus(str, Enum):
     REJECTED = "rejected"
 
 
-class ProvenanceTier(str, Enum):
+class ProvenanceTier(StrEnum):
     """Trust/source tier for provenance."""
 
     PRIMARY = "primary"
@@ -27,7 +27,7 @@ class ProvenanceTier(str, Enum):
     SYNTHETIC = "synthetic"
 
 
-class ProvenanceMethod(str, Enum):
+class ProvenanceMethod(StrEnum):
     """Method by which data or relationships were obtained."""
 
     DIRECT_TEXT = "direct_text"

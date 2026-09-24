@@ -109,8 +109,8 @@ function EntitiesContent() {
             </div>
           </div>
           <nav className="flex items-center gap-4 text-sm font-medium">
-            <Link href="/" className="text-gray-400 hover:text-gray-200 transition">
-              Home
+            <Link href="/command-center" className="text-gray-400 hover:text-gray-200 transition">
+              Command Center
             </Link>
             <Link href="/corpus" className="text-gray-400 hover:text-gray-200 transition">
               Corpus

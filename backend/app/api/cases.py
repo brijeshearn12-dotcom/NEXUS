@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
@@ -49,6 +49,187 @@ async def list_cases() -> dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list cases.",
+        ) from err
+
+
+class CasePriorityItem(BaseModel):
+    case_id: str = Field(..., description="Case identifier")
+    title: str = Field(..., description="Case title / name")
+    document_count: int = Field(..., description="Document count")
+    documents_count: int = Field(..., description="Alias for document_count")
+    entity_count: int = Field(..., description="Extracted entity count")
+    entities_count: int = Field(..., description="Alias for entity_count")
+    edge_count: int = Field(..., description="Relationship edge count")
+    edges_count: int = Field(..., description="Alias for edge_count")
+    flag_count: int = Field(..., description="Pattern flags count")
+    flags_count: int = Field(..., description="Alias for flag_count")
+    analysis_status: str = Field(..., description="Analysis status: 'completed', 'unanalysed', 'insufficient_data'")
+    verification_status: str = Field(..., description="Verification status: 'needs_verification', 'verified', 'unverified'")
+    priority: str = Field(..., description="Queue priority: 'Ready', 'Needs Analysis', 'Needs Verification', 'Insufficient Data'")
+    updated_at: str | None = Field(None, description="ISO timestamp of last update")
+
+
+class CasePriorityResponse(BaseModel):
+    items: list[CasePriorityItem] = Field(..., description="Prioritized case queue")
+    total: int = Field(..., description="Total cases in priority queue")
+
+
+@router.get(
+    "/priority",
+    summary="Get case priority queue for Command Center operations",
+    response_model=CasePriorityResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_cases_priority() -> dict[str, Any]:
+    """Return real case priority queue for Corpus Command Center.
+
+    Calculates deterministic operational priority ('Ready', 'Needs Analysis',
+    'Needs Verification', 'Insufficient Data') based on actual MongoDB counts
+    and network analysis audit trails. Never uses mock or fake scores.
+    """
+    try:
+        db = get_db()
+
+        # Efficient MongoDB aggregations to avoid N+1 queries
+        doc_counts = {
+            r["_id"]: r["count"]
+            for r in db.documents.aggregate([{"$group": {"_id": "$case_id", "count": {"$sum": 1}}}])
+            if r.get("_id")
+        }
+        ent_counts = {
+            r["_id"]: r
+            for r in db.entities.aggregate([
+                {
+                    "$group": {
+                        "_id": "$case_id",
+                        "total": {"$sum": 1},
+                        "unverified": {
+                            "$sum": {"$cond": [{"$eq": ["$verification_status", "unverified"]}, 1, 0]}
+                        },
+                    }
+                }
+            ])
+            if r.get("_id")
+        }
+        edge_counts = {
+            r["_id"]: r["total"]
+            for r in db.edges.aggregate([{"$group": {"_id": "$case_id", "total": {"$sum": 1}}}])
+            if r.get("_id")
+        }
+        flag_counts = {
+            r["_id"]: r
+            for r in db.flags.aggregate([
+                {
+                    "$group": {
+                        "_id": "$case_id",
+                        "total": {"$sum": 1},
+                        "unverified": {
+                            "$sum": {"$cond": [{"$eq": ["$verification_status", "unverified"]}, 1, 0]}
+                        },
+                    }
+                }
+            ])
+            if r.get("_id")
+        }
+        analyzed_set = set(
+            db.audit_log.distinct("case_id", {"action": "network_analysis_completed"})
+        )
+
+        cases = list(db.cases.find({}, projection={"_id": 0}))
+
+        # Ensure any case that has documents is included even if not yet in db.cases
+        case_id_set = {
+            c.get("case_id") or c.get("id")
+            for c in cases
+            if (c.get("case_id") or c.get("id"))
+        }
+        for doc_cid in doc_counts.keys():
+            if doc_cid and doc_cid not in case_id_set:
+                cases.append({"case_id": doc_cid, "title": f"Case {doc_cid}", "id": doc_cid})
+                case_id_set.add(doc_cid)
+
+        items: list[dict[str, Any]] = []
+        for c in cases:
+            cid = c.get("case_id") or c.get("id") or ""
+            if not cid:
+                continue
+
+            title = c.get("title") or f"Case {cid}"
+            docs = doc_counts.get(cid, 0)
+            ents = ent_counts.get(cid, {}).get("total", 0)
+            unv_ents = ent_counts.get(cid, {}).get("unverified", 0)
+            edges = edge_counts.get(cid, 0)
+            flags = flag_counts.get(cid, {}).get("total", 0)
+            unv_flags = flag_counts.get(cid, {}).get("unverified", 0)
+            is_analyzed = cid in analyzed_set
+
+            # Real evidence-based priority triage
+            if docs == 0 or (docs > 0 and ents == 0):
+                priority = "Insufficient Data"
+                analysis_status = "insufficient_data"
+            elif not is_analyzed:
+                priority = "Needs Analysis"
+                analysis_status = "unanalysed"
+            elif unv_ents > 0 or unv_flags > 0:
+                priority = "Needs Verification"
+                analysis_status = "completed"
+            else:
+                priority = "Ready"
+                analysis_status = "completed"
+
+            if unv_ents > 0 or unv_flags > 0:
+                verification_status = "needs_verification"
+            elif ents > 0 or flags > 0:
+                verification_status = "verified"
+            else:
+                verification_status = "unverified"
+
+            updated_val = c.get("updated_at") or c.get("created_at")
+            updated_str = (
+                updated_val.isoformat()
+                if hasattr(updated_val, "isoformat")
+                else (str(updated_val) if updated_val else None)
+            )
+
+            items.append({
+                "case_id": cid,
+                "title": title,
+                "document_count": docs,
+                "documents_count": docs,
+                "entity_count": ents,
+                "entities_count": ents,
+                "edge_count": edges,
+                "edges_count": edges,
+                "flag_count": flags,
+                "flags_count": flags,
+                "analysis_status": analysis_status,
+                "verification_status": verification_status,
+                "priority": priority,
+                "updated_at": updated_str,
+            })
+
+        # Priority ordering: Needs Verification first, Needs Analysis, Ready, Insufficient Data
+        priority_weights = {
+            "Needs Verification": 0,
+            "Needs Analysis": 1,
+            "Ready": 2,
+            "Insufficient Data": 3,
+        }
+        items.sort(
+            key=lambda x: (
+                priority_weights.get(x["priority"], 99),
+                -x["flag_count"],
+                -x["entity_count"],
+                x["case_id"],
+            )
+        )
+
+        return {"items": items, "total": len(items)}
+    except Exception as err:
+        logger.error("Error generating case priority queue: %s", err, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to load case priority data.",
         ) from err
 
 
@@ -125,11 +306,12 @@ async def extract_case_endpoint(
     enable_gemini_fallback: bool = Query(default=True, description="Enable Gemini LLM fallback"),
 ) -> dict[str, Any]:
     """Execute entity extraction for all documents in a case.
-    
+
     Idempotent: If entities already exist, reports already_extracted=True without duplicating data.
     Logs authoritative audit events in `db.audit_log`.
     """
     from datetime import UTC, datetime
+
     from app.services.extraction.service import extract_and_store_document
 
     db = get_db()
@@ -590,10 +772,6 @@ async def simulate_case_what_if_endpoint(
         G_orig = load_case_graph(case_id=case_id, database=db)
         num_orig_nodes = G_orig.number_of_nodes()
         num_orig_edges = G_orig.number_of_edges()
-        person_nodes_orig = [
-            n for n, d in G_orig.nodes(data=True)
-            if is_valid_person_entity(n, d)
-        ]
 
         # Check original graph baseline
         if num_orig_nodes < MIN_GRAPH_NODES or num_orig_edges < MIN_GRAPH_EDGES:

@@ -20,7 +20,6 @@ Covers:
 from __future__ import annotations
 
 import networkx as nx
-import pytest
 from fastapi.testclient import TestClient
 
 from app.core.db import get_db
@@ -84,7 +83,7 @@ def test_noordin_graph_construction():
         assert data.get("case_id") == "noordin_top"
 
     # Verify edges have required attributes
-    for u, v, data in G.edges(data=True):
+    for _u, _v, data in G.edges(data=True):
         assert "weight" in data
         assert data["weight"] >= 1.0
         assert "edge_type" in data

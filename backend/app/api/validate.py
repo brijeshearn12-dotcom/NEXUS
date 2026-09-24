@@ -45,7 +45,26 @@ async def validate_noordin_endpoint(
     - Documented validation limitations and legal notice
     """
     try:
-        return run_noordin_validation(top_k=top_k)
+        res = run_noordin_validation(top_k=top_k)
+        if res.get("status") == "ok":
+            try:
+                from datetime import UTC, datetime
+
+                from app.core.db import get_db
+
+                db = get_db()
+                db.validation_runs.insert_one({
+                    "dataset": "noordin_top",
+                    "top_k": res["top_k"],
+                    "matches": res["matches"],
+                    "score": f"{res['matches']}/{res['top_k']}",
+                    "score_str": res["score"],
+                    "score_percentage": res.get("score_percentage", 0.0),
+                    "created_at": datetime.now(UTC),
+                })
+            except Exception as db_err:
+                logger.warning("Could not persist validation run to db: %s", db_err)
+        return res
     except Exception as exc:
         logger.error("Noordin validation execution failed: %s", exc, exc_info=True)
         raise HTTPException(
@@ -77,6 +96,7 @@ async def reject_item(payload: ActionValidationRequest) -> dict[str, Any]:
 
 async def _process_action(payload: ActionValidationRequest, new_status: str) -> dict[str, Any]:
     from datetime import UTC, datetime
+
     from app.core.db import get_db
 
     db = get_db()

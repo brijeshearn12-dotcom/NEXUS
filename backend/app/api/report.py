@@ -6,7 +6,6 @@ Provides endpoints to generate and download comprehensive PDF investigation doss
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Response, status
 

@@ -131,8 +131,8 @@ export default function CorpusPage() {
             </div>
           </div>
           <nav className="flex items-center gap-4 text-sm font-medium">
-            <Link href="/" className="text-gray-400 hover:text-gray-200 transition">
-              Home
+            <Link href="/command-center" className="text-gray-400 hover:text-gray-200 transition">
+              Command Center
             </Link>
             <Link href="/corpus" className="text-emerald-400 border-b-2 border-emerald-500 pb-0.5">
               Corpus

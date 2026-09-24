@@ -2,9 +2,10 @@
 Tests for Task 6.2 — Guided Analysis Flow Orchestration and Read-Only Audit Trail.
 """
 import pytest
-from httpx import AsyncClient, ASGITransport
-from app.main import app
+from httpx import ASGITransport, AsyncClient
+
 from app.core.db import get_db
+from app.main import app
 
 
 @pytest.mark.asyncio

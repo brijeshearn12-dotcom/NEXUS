@@ -6,10 +6,10 @@ Every generated edge is explicitly marked with synthetic provenance tier.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 import random
-from typing import Any
 import uuid
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from faker import Faker
 

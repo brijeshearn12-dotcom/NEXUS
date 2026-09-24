@@ -23,6 +23,12 @@ export default function DashboardPage() {
 
         <div className="flex items-center gap-2">
           <Link
+            href="/command-center"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors shadow"
+          >
+            <span>📊 Command Center</span>
+          </Link>
+          <Link
             href="/cases/case_100478559/graph"
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-blue-500 transition-colors"
           >

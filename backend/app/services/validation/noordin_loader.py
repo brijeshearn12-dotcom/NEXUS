@@ -8,8 +8,13 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 from pathlib import Path
 from typing import Any
+
+import networkx as nx
+
+logger = logging.getLogger(__name__)
 
 
 def get_validation_dir() -> Path:
@@ -65,13 +70,6 @@ def load_operational_edges() -> list[dict[str, Any]]:
 
 def load_trust_edges() -> list[dict[str, Any]]:
     return load_edge_file("trust_edges.csv")
-
-
-import logging
-
-import networkx as nx
-
-logger = logging.getLogger(__name__)
 
 
 def load_financial_edges() -> list[dict[str, Any]]:

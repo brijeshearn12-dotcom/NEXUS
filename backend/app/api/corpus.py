@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from app.core.db import get_db
 from app.services.corpus_service import load_curated_corpus
@@ -14,6 +15,56 @@ from app.services.extraction.service import extract_all_corpus_documents
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class CorpusStatsResponse(BaseModel):
+    documents: int = Field(..., description="Total documents in the corpus")
+    cases: int = Field(..., description="Total cases in the corpus")
+    entities: int = Field(..., description="Total extracted entities")
+    edges: int = Field(..., description="Total relationship graph edges")
+    flags: int = Field(..., description="Total pattern flags")
+    validation_score: str | None = Field(None, description="Task 5.2 validation score (e.g. '4/5') or null if not run")
+
+
+@router.get(
+    "/stats",
+    summary="Get corpus-wide intelligence statistics",
+    response_model=CorpusStatsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_corpus_stats() -> dict[str, Any]:
+    """Retrieve corpus-wide aggregate statistics directly from MongoDB.
+
+    Returns real database counts for documents, cases, entities, edges,
+    flags, and the latest empirical Task 5.2 validation score.
+    """
+    try:
+        db = get_db()
+        total_docs = db.documents.count_documents({})
+        total_cases = db.cases.count_documents({})
+        total_entities = db.entities.count_documents({})
+        total_edges = db.edges.count_documents({})
+        total_flags = db.flags.count_documents({})
+
+        latest_val = db.validation_runs.find_one(sort=[("created_at", -1)])
+        val_score: str | None = None
+        if latest_val and latest_val.get("score"):
+            val_score = str(latest_val["score"])
+
+        return {
+            "documents": total_docs,
+            "cases": total_cases,
+            "entities": total_entities,
+            "edges": total_edges,
+            "flags": total_flags,
+            "validation_score": val_score,
+        }
+    except Exception as err:
+        logger.error("Error retrieving corpus stats: %s", err, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to load corpus data.",
+        ) from err
 
 
 @router.post(

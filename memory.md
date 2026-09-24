@@ -5,6 +5,26 @@
 
 ---
 
+## Session: Day 7 — Task 7.2: Corpus-Level Command Center
+**Date:** 2026-09-24
+**Status:** Complete
+
+### Decisions Made
+- Implemented `GET /api/corpus/stats` returning live aggregate counts from MongoDB (`documents`, `cases`, `entities`, `edges`, `flags`, and `validation_score`).
+- Persisted empirical Noordin Top validation runs in MongoDB `validation_runs` to supply actual Task 5.2 validation benchmark score (`"4/5"`), returning `null` when no run has executed.
+- Implemented `GET /api/cases/priority` with single-query aggregation pipelines across `documents`, `entities`, `edges`, `flags`, and `audit_log` to avoid N+1 queries.
+- Triage priority statuses are deterministic and strictly evidence-backed: `Needs Verification`, `Needs Analysis`, `Ready`, `Insufficient Data` (no fake AI scores).
+- Built responsive Command Center frontend page at `/command-center` matching NEXUS design language: header, live status badge, 6 stat cards, real case priority queue with search and priority filters, clean loading skeletons, error state with retry, and empty state.
+- Integrated `/command-center` into NEXUS top-level navigation across Corpus, Entities, Dashboard, and Case Graph views.
+- Verified live database counts match API: Documents (20), Cases (20), Entities (8,213), Edges (505), Flags (5), Validation score (4/5).
+- Verified full Day 6 regression on real case `case_100478559` (14/14 pipeline steps passing) and Day 7.1 PDF Dossier generation.
+- All backend tests passing (6/6 in `test_command_center.py`), frontend typecheck clean, lint clean, and Next.js production build passing.
+
+### Blockers
+- None.
+
+---
+
 ## Session: Day 3 — Task 3.1: Rule-Based + spaCy + Gemini Fallback Entity Extraction
 **Date:** 2026-09-21
 **Status:** Complete

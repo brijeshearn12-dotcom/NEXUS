@@ -589,3 +589,53 @@ export async function clearCaseSynthetic(
   );
 }
 
+// ==========================================
+// Task 7.2 — Corpus-Level Command Center Types & API
+// ==========================================
+
+export interface CorpusStats {
+  documents: number;
+  cases: number;
+  entities: number;
+  edges: number;
+  flags: number;
+  validation_score: string | null;
+}
+
+export type CasePriorityStatus =
+  | "Needs Verification"
+  | "Needs Analysis"
+  | "Ready"
+  | "Insufficient Data";
+
+export interface CasePriorityItem {
+  case_id: string;
+  title: string;
+  document_count: number;
+  documents_count: number;
+  entity_count: number;
+  entities_count: number;
+  edge_count: number;
+  edges_count: number;
+  flag_count: number;
+  flags_count: number;
+  analysis_status: "completed" | "unanalysed" | "insufficient_data" | string;
+  verification_status: "needs_verification" | "verified" | "unverified" | string;
+  priority: CasePriorityStatus;
+  updated_at?: string | null;
+}
+
+export interface CasePriorityResponse {
+  items: CasePriorityItem[];
+  total: number;
+}
+
+export async function fetchCorpusStats(): Promise<FetchResult<CorpusStats>> {
+  return apiRequest<CorpusStats>("/api/corpus/stats");
+}
+
+export async function fetchCasePriorityQueue(): Promise<FetchResult<CasePriorityResponse>> {
+  return apiRequest<CasePriorityResponse>("/api/cases/priority");
+}
+
+
