@@ -26,6 +26,7 @@ export default function GraphCanvas({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
+  const layoutRef = useRef<cytoscape.Layouts | null>(null);
   const [currentLayout, setCurrentLayout] = useState<string>("cose");
 
   // Re-run layout on demand
@@ -37,7 +38,10 @@ export default function GraphCanvas({
     if (layoutName === "cose") {
       layoutConfig = {
         name: "cose",
-        animate: true,
+        // "end": compute the layout synchronously, then animate nodes to their final positions.
+        // With `true`, CoSE keeps its own frame loop running after destroy() (stop() does not
+        // cancel it), which throws "Cannot read properties of null (reading 'notify')".
+        animate: "end",
         animationDuration: 600,
         randomize: false,
         componentSpacing: 100,
@@ -77,7 +81,10 @@ export default function GraphCanvas({
       } as cytoscape.LayoutOptions;
     }
 
+    // Stop any layout still animating before starting a new one.
+    layoutRef.current?.stop();
     const layout = cy.layout(layoutConfig);
+    layoutRef.current = layout;
     layout.run();
   }, []);
 
@@ -132,6 +139,9 @@ export default function GraphCanvas({
     }
 
     if (cyRef.current) {
+      layoutRef.current?.stop();
+      cyRef.current.elements().stop(true, false);
+      cyRef.current.stop(true, false);
       cyRef.current.destroy();
     }
 
@@ -288,6 +298,11 @@ export default function GraphCanvas({
     runLayout(currentLayout);
 
     return () => {
+      // An animated layout destroyed mid-frame throws "Cannot read properties of null (reading 'notify')".
+      layoutRef.current?.stop();
+      layoutRef.current = null;
+      cy.elements().stop(true, false);
+      cy.stop(true, false);
       cy.destroy();
       cyRef.current = null;
     };
@@ -425,6 +440,17 @@ export default function GraphCanvas({
         <span>•</span>
         <span>Edges: <strong className="text-slate-200">{edges.length}</strong></span>
       </div>
+
+      {/* Empty state: nothing extracted (or nothing extractable) for this case */}
+      {!isLoading && nodes.length === 0 && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center">
+          <p className="text-sm font-semibold text-slate-200">No entities or relationships to display</p>
+          <p className="mt-1 max-w-sm text-xs text-slate-400">
+            Nothing has been extracted for this case yet. Run &ldquo;Analyse Case&rdquo; to extract entities from
+            the judgment text; some judgments contain no extractable people, places or identifiers.
+          </p>
+        </div>
+      )}
 
       {/* Loading overlay */}
       {isLoading && (

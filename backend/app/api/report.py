@@ -10,6 +10,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Response, status
 
 from app.core.db import get_db
+from app.core.limits import safe_error_detail
 from app.services.report_generator import generate_case_pdf_report
 
 logger = logging.getLogger(__name__)
@@ -64,5 +65,5 @@ async def get_case_report_pdf(case_id: str) -> Response:
         logger.error("Failed to generate PDF report for case %s: %s", case_id, err, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate PDF report: {str(err)}",
+            detail=safe_error_detail("Failed to generate PDF report", err),
         ) from err

@@ -506,7 +506,12 @@ def test_api_document_extract_failure_handling():
         mock_extract.side_effect = RuntimeError("Database connection timed out")
         resp = client.post("/api/documents/doc_100478559/extract")
         assert resp.status_code == 500
-        assert "Database connection timed out" in resp.json()["detail"]
+        detail = resp.json()["detail"]
+        # Task 8.2: a clean 500 names the failure type but never echoes internal error text
+        # (e.g. database hostnames) back to the client.
+        assert "Extraction pipeline encountered an internal error" in detail
+        assert "RuntimeError" in detail
+        assert "Database connection timed out" not in detail
 
 
 def test_api_corpus_extract_all_endpoint():

@@ -3,6 +3,27 @@
 import React from "react";
 import { ReasoningTrailData } from "@/lib/api";
 
+// The analysis API returns evidence / reasoning / source as lists and result as an object
+// (e.g. {rank, combined_score, degree, ...}); older payloads use plain strings. Rendering an
+// object directly crashes React, so every field is normalised to text first.
+type TrailValue = string | number | boolean | null | undefined | TrailValue[] | { [key: string]: TrailValue };
+
+function toLines(value: TrailValue): string[] {
+  if (value === null || value === undefined || value === "") return [];
+  if (Array.isArray(value)) return value.flatMap((v) => toLines(v));
+  if (typeof value === "object") {
+    return Object.entries(value).map(([k, v]) => `${k.replace(/_/g, " ")}: ${formatScalar(v)}`);
+  }
+  return [String(value).replace(/\s+/g, " ").trim()].filter(Boolean);
+}
+
+function formatScalar(value: TrailValue): string {
+  if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toFixed(4);
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "object") return toLines(value).join("; ");
+  return String(value);
+}
+
 interface Props {
   trail?: ReasoningTrailData | null;
   title?: string;
@@ -25,6 +46,10 @@ export default function ReasoningTrailPanel({
     );
   }
 
+  const evidenceLines = toLines(trail.evidence as TrailValue);
+  const reasoningLines = toLines(trail.reasoning as TrailValue);
+  const resultLines = toLines(trail.result as TrailValue);
+  const sourceText = toLines(trail.source as TrailValue).join(" · ");
   const confidencePct = Math.round((trail.confidence || 0) * 100);
   const confidenceColor =
     confidencePct >= 80
@@ -81,9 +106,20 @@ export default function ReasoningTrailPanel({
             </span>
             <span className="text-[11px] font-medium text-slate-300">Corroborated Document & Network Evidence</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-200 leading-relaxed font-mono bg-slate-900/60 p-1.5 rounded border border-slate-800/80">
-            {trail.evidence || "Direct judicial record co-occurrence and network topological evidence"}
-          </p>
+          {evidenceLines.length > 0 ? (
+            <div className="mt-1 space-y-1">
+              {evidenceLines.map((line, idx) => (
+                <p
+                  key={idx}
+                  className="text-[11px] text-slate-200 leading-relaxed font-mono bg-slate-900/60 p-1.5 rounded border border-slate-800/80"
+                >
+                  &ldquo;{line}&rdquo;
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-[11px] italic text-slate-500">No source passage recorded for this item.</p>
+          )}
         </div>
 
         {/* Step 3: REASONING */}
@@ -94,9 +130,15 @@ export default function ReasoningTrailPanel({
             </span>
             <span className="text-[11px] font-medium text-slate-300">Algorithmic & Graph Derivation</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-300 leading-relaxed">
-            {trail.reasoning || "Centrality scores, community clustering, and cross-case bridge analysis"}
-          </p>
+          {reasoningLines.length > 0 ? (
+            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-slate-300 leading-relaxed">
+              {reasoningLines.map((line, idx) => (
+                <li key={idx}>{line}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-[11px] italic text-slate-500">No reasoning steps recorded.</p>
+          )}
         </div>
 
         {/* Step 4: RESULT */}
@@ -107,9 +149,20 @@ export default function ReasoningTrailPanel({
             </span>
             <span className="text-[11px] font-medium text-slate-300">Deduced Role & Significance</span>
           </div>
-          <p className="mt-1 text-[11px] font-semibold text-emerald-300">
-            {trail.result || "Analyzed network entity"}
-          </p>
+          {resultLines.length > 0 ? (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {resultLines.map((line, idx) => (
+                <span
+                  key={idx}
+                  className="rounded border border-emerald-900 bg-emerald-950/40 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300"
+                >
+                  {line}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-[11px] italic text-slate-500">No result recorded.</p>
+          )}
         </div>
 
         {/* Steps 5 & 6: CONFIDENCE & SOURCE */}
@@ -131,8 +184,8 @@ export default function ReasoningTrailPanel({
                 6. SOURCE
               </span>
             </div>
-            <p className="mt-1 text-[11px] font-mono text-purple-200 truncate" title={trail.source}>
-              {trail.source || "Official court record corpus"}
+            <p className="mt-1 text-[11px] font-mono text-purple-200 break-words" title={sourceText}>
+              {sourceText || "Source not recorded"}
             </p>
           </div>
         </div>

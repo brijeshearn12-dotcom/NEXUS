@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.core.db import get_collection
+from app.core.limits import MAX_ANALYST_ID_CHARS, MAX_NOTES_CHARS, MAX_QUERY_TEXT_CHARS, MAX_STATUS_CHARS
 
 router = APIRouter()
 
@@ -16,12 +17,22 @@ router = APIRouter()
 @router.get("", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
 @router.get("/", response_model=dict[str, Any], status_code=status.HTTP_200_OK, include_in_schema=False)
 async def list_entities(
-    case_id: str | None = Query(default=None, description="Filter by case ID"),
-    document_id: str | None = Query(default=None, description="Filter by document ID"),
-    entity_type: str | None = Query(default=None, description="Filter by entity type"),
-    verification_status: str | None = Query(default=None, description="Filter by status"),
-    method: str | None = Query(default=None, description="Filter by provenance method"),
-    q: str | None = Query(default=None, description="Search by entity name or alias"),
+    case_id: str | None = Query(default=None, max_length=MAX_QUERY_TEXT_CHARS, description="Filter by case ID"),
+    document_id: str | None = Query(
+        default=None, max_length=MAX_QUERY_TEXT_CHARS, description="Filter by document ID"
+    ),
+    entity_type: str | None = Query(
+        default=None, max_length=MAX_QUERY_TEXT_CHARS, description="Filter by entity type"
+    ),
+    verification_status: str | None = Query(
+        default=None, max_length=MAX_QUERY_TEXT_CHARS, description="Filter by status"
+    ),
+    method: str | None = Query(
+        default=None, max_length=MAX_QUERY_TEXT_CHARS, description="Filter by provenance method"
+    ),
+    q: str | None = Query(
+        default=None, max_length=MAX_QUERY_TEXT_CHARS, description="Search by entity name or alias"
+    ),
     limit: int = Query(default=50, ge=1, le=500),
     skip: int = Query(default=0, ge=0),
 ) -> dict[str, Any]:
@@ -74,14 +85,16 @@ async def get_entity(entity_id: str) -> dict[str, Any]:
 class EntityVerificationRequest(BaseModel):
     verification_status: str | None = Field(
         None,
+        max_length=MAX_STATUS_CHARS,
         description="Target status: 'confirmed', 'rejected', or 'unverified'",
     )
     status: str | None = Field(
         None,
+        max_length=MAX_STATUS_CHARS,
         description="Alternative alias for verification_status",
     )
-    notes: str | None = Field(None, description="Optional verification notes from analyst")
-    analyst_id: str | None = Field(None, description="Analyst identifier")
+    notes: str | None = Field(None, max_length=MAX_NOTES_CHARS, description="Optional verification notes from analyst")
+    analyst_id: str | None = Field(None, max_length=MAX_ANALYST_ID_CHARS, description="Analyst identifier")
 
 
 @router.get("/{entity_id}/verify", response_model=dict[str, Any], status_code=status.HTTP_200_OK)

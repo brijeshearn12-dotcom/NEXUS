@@ -207,6 +207,26 @@ def test_flag_bridge_node():
     assert "articulation" in b_flag["trail"]["reasoning"][0].lower()
 
 
+
+def test_flag_ids_are_unique_per_entity_within_a_case():
+    # Real entity IDs share a long case prefix; flag IDs must still be unique per entity,
+    # otherwise persisted flags overwrite each other and verification cannot target one flag.
+    G = nx.path_graph(6)  # every interior node is an articulation point
+    G = nx.relabel_nodes(G, {i: f"ent_case_100478559_{i:016x}" for i in range(6)})
+    for n in G.nodes:
+        G.nodes[n].update(name=f"Individual {n[-2:]}", entity_type="PERSON")
+    for u, v in G.edges:
+        G.edges[u, v].update(weight=1.0, edge_id=f"e_{u[-2:]}_{v[-2:]}", evidence="Named together")
+
+    flags = detect_pattern_flags(G, case_id="case_100478559", database=None)
+    bridge_flags = [f for f in flags if f["flag_type"] == "bridge_node"]
+
+    assert len(bridge_flags) >= 2
+    ids = [f["flag_id"] for f in flags]
+    assert len(ids) == len(set(ids))
+    for f in bridge_flags:
+        assert f["flag_id"] == "flag_bridge_" + f["entity_id"].removeprefix("ent_")
+
 def test_flag_density_anomaly():
     # Large sparse path with one extremely dense clique of 4 nodes
     G = nx.path_graph(15)
