@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     app_name: str = "NEXUS — Criminal Network Analysis API"
     debug: bool = False
     low_yield_min_entities_per_1000_chars: float = 0.5
+    # Cross-case candidate matching (analyst-reviewed proposals). Off unless ENABLE_CROSS_CASE=true.
+    enable_cross_case: bool = False
 
     @property
     def allowed_cors_origins(self) -> list[str]:

@@ -638,4 +638,120 @@ export async function fetchCasePriorityQueue(): Promise<FetchResult<CasePriority
   return apiRequest<CasePriorityResponse>("/api/cases/priority");
 }
 
+// ==========================================
+// Cross-case candidate matches (feature flag: ENABLE_CROSS_CASE)
+// NEXUS proposes. The investigator verifies.
+// ==========================================
+
+export type CrossCaseStatus = "proposed" | "confirmed" | "rejected";
+
+export interface CrossCaseSide {
+  case_id: string;
+  document_id: string;
+  document_title?: string | null;
+  source_url?: string | null;
+  court?: string | null;
+  date?: string | null;
+  entity_id: string;
+  entity_name: string;
+  entity_type: string;
+  matched_name_form: string;
+  is_accused_in_case?: boolean;
+  participant_mention_count: number;
+  citation_mention_count?: number;
+  evidence_passage: string;
+  evidence_start_char?: number;
+  evidence_end_char?: number;
+  extraction_evidence_snippet?: string | null;
+}
+
+export interface CrossCaseCorroboration {
+  kind: string;
+  value: string;
+  description: string;
+  evidence_a?: string | null;
+  evidence_b?: string | null;
+}
+
+export interface CrossCaseReviewEvent {
+  status: string;
+  previous_status: string;
+  analyst_id: string;
+  notes?: string | null;
+  timestamp: string;
+}
+
+export interface CrossCaseLink {
+  link_id: string;
+  status: CrossCaseStatus;
+  side_a: CrossCaseSide;
+  side_b: CrossCaseSide;
+  name_match_basis: string;
+  name_similarity: number;
+  corroboration: CrossCaseCorroboration[];
+  match_strength: string;
+  match_score: number;
+  score_breakdown: string[];
+  score_note: string;
+  reasons: string[];
+  disclaimer: string;
+  matcher_version: string;
+  analyst_notes?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_history?: CrossCaseReviewEvent[];
+}
+
+export interface CrossCaseFeatureStatus {
+  enabled: boolean;
+  matcher_version: string;
+  principle: string;
+  disclaimer: string;
+}
+
+export interface CrossCaseRunSummary {
+  status: string;
+  documents_considered: number;
+  distinct_judgments: number;
+  proposals_found: number;
+  proposals_created: number;
+  duplicate_groups: Array<{ representative: string; members: string[]; min_similarity: number | null }>;
+}
+
+export interface CaseCrossCaseLinksResponse {
+  case_id: string;
+  total: number;
+  principle: string;
+  items: CrossCaseLink[];
+}
+
+export async function fetchCrossCaseStatus(): Promise<FetchResult<CrossCaseFeatureStatus>> {
+  return apiRequest<CrossCaseFeatureStatus>("/api/cross-case/status");
+}
+
+export async function fetchCaseCrossCaseLinks(
+  caseId: string
+): Promise<FetchResult<CaseCrossCaseLinksResponse>> {
+  return apiRequest<CaseCrossCaseLinksResponse>(`/api/cross-case/cases/${encodeURIComponent(caseId)}`);
+}
+
+export async function runCrossCaseMatching(): Promise<FetchResult<CrossCaseRunSummary>> {
+  return apiRequest<CrossCaseRunSummary>("/api/cross-case/run", { method: "POST" }, 120000);
+}
+
+export async function verifyCrossCaseLink(
+  linkId: string,
+  status: CrossCaseStatus,
+  notes?: string
+): Promise<FetchResult<CrossCaseLink>> {
+  return apiRequest<CrossCaseLink>(`/api/cross-case/links/${encodeURIComponent(linkId)}/verify`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      status,
+      analyst_id: "analyst-1",
+      notes: notes || `Analyst marked candidate match as ${status}`,
+    }),
+  });
+}
+
 

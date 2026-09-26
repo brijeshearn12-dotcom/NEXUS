@@ -9,6 +9,8 @@ interface Props {
   onReset?: () => Promise<void> | void;
   disabled?: boolean;
   size?: "sm" | "md";
+  /** Label for the not-yet-reviewed state (defaults to "Unverified"). */
+  pendingLabel?: string;
 }
 
 export default function ConfirmRejectControl({
@@ -18,6 +20,7 @@ export default function ConfirmRejectControl({
   onReset,
   disabled = false,
   size = "md",
+  pendingLabel = "Unverified",
 }: Props) {
   const [loadingAction, setLoadingAction] = useState<"confirm" | "reject" | "reset" | null>(null);
 
@@ -46,7 +49,7 @@ export default function ConfirmRejectControl({
       >
         {currentStatus === "confirmed" && "✓ Confirmed"}
         {currentStatus === "rejected" && "✗ Rejected"}
-        {currentStatus === "unverified" && "⏳ Unverified"}
+        {currentStatus === "unverified" && `⏳ ${pendingLabel}`}
       </span>
 
       {/* Action buttons */}
