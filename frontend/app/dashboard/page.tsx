@@ -51,7 +51,7 @@ export default function DashboardPage() {
               </h2>
             </div>
             <p className="mt-1 text-xs text-slate-300 max-w-2xl leading-relaxed">
-              Launch the complete 4-step orchestration pipeline (<code>extract → resolve → build-graph → analysis</code>) with live step progress, examine real centrality-ranked Key Individuals, test disruptive removal simulations with before/after ranking diffs, and inspect the immutable audit log.
+              Launch the complete 4-step orchestration pipeline (<code>extract → resolve → build-graph → analysis</code>) with live step progress, examine real centrality-ranked Key Individuals, test disruptive removal simulations with before/after ranking diffs, and inspect the audit log.
             </p>
           </div>
           <div className="shrink-0 flex items-center gap-2">

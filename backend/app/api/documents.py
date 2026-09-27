@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.db import get_collection
+from app.core.limits import MAX_QUERY_TEXT_CHARS, safe_error_detail
 from app.services.extraction.service import extract_and_store_document
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,7 @@ async def extract_document_endpoint(
         logger.exception("Extraction failed on document %s: %s", clean_id, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Extraction pipeline encountered an internal error: {str(exc)}",
+            detail=safe_error_detail("Extraction pipeline encountered an internal error", exc),
         ) from exc
 
 
@@ -85,9 +86,9 @@ async def extract_document_endpoint(
 async def list_documents_endpoint(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    case_id: str | None = Query(None, description="Filter by case ID"),
+    case_id: str | None = Query(None, max_length=MAX_QUERY_TEXT_CHARS, description="Filter by case ID"),
     extraction_status: str | None = Query(
-        None, description="Filter by status: 'extracted' or 'pending'"
+        None, max_length=MAX_QUERY_TEXT_CHARS, description="Filter by status: 'extracted' or 'pending'"
     ),
 ) -> dict[str, Any]:
     """Return paginated list of documents with metadata and real entity counts."""

@@ -32,12 +32,12 @@ export default function AuditTrailPanel({ caseId, refreshTrigger }: Props) {
 
   const formatTime = (isoString?: string) => {
     if (!isoString) return "--:--:--";
-    try {
-      const d = new Date(isoString);
-      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    } catch {
-      return isoString;
-    }
+    // The API stores UTC but returns ISO strings without a zone designator; JavaScript would
+    // read those as local time, so mark them as UTC before converting to the viewer's zone.
+    const hasZone = /(Z|[+-]\d{2}:?\d{2})$/i.test(isoString);
+    const d = new Date(hasZone ? isoString : `${isoString}Z`);
+    if (Number.isNaN(d.getTime())) return isoString;
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   };
 
   const getActionBadge = (action: string) => {
@@ -180,7 +180,8 @@ export default function AuditTrailPanel({ caseId, refreshTrigger }: Props) {
       </div>
 
       <div className="mt-2 border-t border-slate-800/80 pt-1.5 text-[10px] text-slate-500 italic">
-        Read-only authoritative record stored in MongoDB `audit_log`. Tamper-evident and immutable.
+        Read-only view of the MongoDB `audit_log` collection. NEXUS only appends entries; the log is not
+        cryptographically tamper-evident.
       </div>
     </section>
   );
