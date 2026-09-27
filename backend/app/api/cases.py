@@ -4,12 +4,22 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from app.core.db import get_db
+from app.core.limits import (
+    MAX_ANALYST_ID_CHARS,
+    MAX_ID_CHARS,
+    MAX_ID_LIST_ITEMS,
+    MAX_NOTES_CHARS,
+    MAX_SOURCE_REF_CHARS,
+    MAX_STATUS_CHARS,
+    MAX_TITLE_CHARS,
+    safe_error_detail,
+)
 from app.services.corpus_service import ingest_manual_text
 from app.services.graph.builder import build_graph_for_case, get_graph_for_case
 from app.services.resolution.alias_resolver import resolve_case_aliases
@@ -22,9 +32,12 @@ MAX_INGEST_TEXT_LENGTH = 5_000_000  # ~5MB character safety limit
 
 
 class ManualIngestRequest(BaseModel):
+    # Length is enforced by the endpoint (MAX_INGEST_TEXT_LENGTH -> clean 413), not by the schema.
     text: str = Field(..., description="Pasted judgment text content")
-    title: str | None = Field(None, description="Optional title for the document")
-    source_ref: str | None = Field(None, description="Optional source reference or identifier")
+    title: str | None = Field(None, max_length=MAX_TITLE_CHARS, description="Optional title for the document")
+    source_ref: str | None = Field(
+        None, max_length=MAX_SOURCE_REF_CHARS, description="Optional source reference or identifier"
+    )
 
 
 @router.get(
@@ -439,7 +452,7 @@ async def resolve_case_entities(
         logger.error("Alias resolution error for case %s: %s", case_id, err, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Alias resolution failed: {str(err)}",
+            detail=safe_error_detail("Alias resolution failed", err),
         ) from err
 
 
@@ -479,7 +492,7 @@ async def build_case_graph_endpoint(case_id: str) -> dict[str, Any]:
         logger.error("Error building graph for case %s: %s", case_id, err, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to build graph: {str(err)}",
+            detail=safe_error_detail("Failed to build graph", err),
         ) from err
 
 
@@ -507,7 +520,7 @@ async def get_case_graph_endpoint(case_id: str) -> dict[str, Any]:
         logger.error("Error fetching graph for case %s: %s", case_id, err, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch graph: {str(err)}",
+            detail=safe_error_detail("Failed to fetch graph", err),
         ) from err
 
 
@@ -714,13 +727,14 @@ async def get_case_analysis_endpoint(case_id: str) -> dict[str, Any]:
         logger.error("Analysis calculation failed for case %s: %s", case_id, err, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Analysis calculation failed: {str(err)}",
+            detail=safe_error_detail("Analysis calculation failed", err),
         ) from err
 
 
 class SimulationRequest(BaseModel):
-    exclude_node_ids: list[str] = Field(
+    exclude_node_ids: list[Annotated[str, StringConstraints(max_length=MAX_ID_CHARS)]] = Field(
         default_factory=list,
+        max_length=MAX_ID_LIST_ITEMS,
         description="List of node/entity IDs to exclude in this what-if scenario.",
     )
 
@@ -948,15 +962,17 @@ async def simulate_case_what_if_endpoint(
         logger.error("Simulation failed for case %s: %s", case_id, err, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Simulation failed: {str(err)}",
+            detail=safe_error_detail("Simulation failed", err),
         ) from err
 
 
 class FlagVerificationRequest(BaseModel):
-    verification_status: str | None = Field(None, description="'confirmed', 'rejected', or 'unverified'")
-    status: str | None = Field(None, description="Alternative alias for verification_status")
-    notes: str | None = Field(None, description="Optional analyst verification notes")
-    analyst_id: str | None = Field(None, description="Analyst identifier")
+    verification_status: str | None = Field(
+        None, max_length=MAX_STATUS_CHARS, description="'confirmed', 'rejected', or 'unverified'"
+    )
+    status: str | None = Field(None, max_length=MAX_STATUS_CHARS, description="Alternative alias for verification_status")
+    notes: str | None = Field(None, max_length=MAX_NOTES_CHARS, description="Optional analyst verification notes")
+    analyst_id: str | None = Field(None, max_length=MAX_ANALYST_ID_CHARS, description="Analyst identifier")
 
 
 @router.patch(
@@ -1145,7 +1161,7 @@ async def generate_case_synthetic_endpoint(
         logger.error("Failed to generate synthetic data for case %s: %s", case_id, err, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Synthetic generation failed: {str(err)}",
+            detail=safe_error_detail("Synthetic generation failed", err),
         ) from err
 
 
@@ -1166,7 +1182,7 @@ async def clear_case_synthetic_endpoint(case_id: str) -> dict[str, Any]:
         logger.error("Failed to clear synthetic data for case %s: %s", case_id, err, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to clear synthetic data: {str(err)}",
+            detail=safe_error_detail("Failed to clear synthetic data", err),
         ) from err
 
 
@@ -1225,7 +1241,7 @@ async def get_case_investigation_report_pdf(case_id: str) -> Response:
         logger.error("Failed to generate PDF report for case %s: %s", case_id, err, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate PDF report: {str(err)}",
+            detail=safe_error_detail("Failed to generate PDF report", err),
         ) from err
 
 

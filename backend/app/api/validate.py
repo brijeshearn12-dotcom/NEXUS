@@ -6,7 +6,9 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.core.limits import MAX_ANALYST_ID_CHARS, MAX_ID_CHARS, MAX_NOTES_CHARS, safe_error_detail
 
 from app.services.validation.noordin_loader import run_noordin_validation
 
@@ -69,17 +71,17 @@ async def validate_noordin_endpoint(
         logger.error("Noordin validation execution failed: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Validation execution failed: {str(exc)}",
+            detail=safe_error_detail("Validation execution failed", exc),
         ) from exc
 
 
 class ActionValidationRequest(BaseModel):
-    entity_id: str | None = None
-    flag_id: str | None = None
-    edge_id: str | None = None
-    case_id: str | None = None
-    notes: str | None = None
-    analyst_id: str | None = None
+    entity_id: str | None = Field(None, max_length=MAX_ID_CHARS)
+    flag_id: str | None = Field(None, max_length=MAX_ID_CHARS)
+    edge_id: str | None = Field(None, max_length=MAX_ID_CHARS)
+    case_id: str | None = Field(None, max_length=MAX_ID_CHARS)
+    notes: str | None = Field(None, max_length=MAX_NOTES_CHARS)
+    analyst_id: str | None = Field(None, max_length=MAX_ANALYST_ID_CHARS)
 
 
 @router.post("/confirm", summary="Confirm entity, edge, or flag verification")

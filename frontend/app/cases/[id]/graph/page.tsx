@@ -145,13 +145,14 @@ export default function CaseGraphPage({ params }: Props) {
     setAuditTrigger((prev) => prev + 1);
   };
 
-  // Select node from canvas, search, or key individuals
-  const handleSelectNode = (node: EnrichedGraphNode | null) => {
+  // Select node from canvas, search, or key individuals.
+  // Memoised: GraphCanvas rebuilds the Cytoscape instance whenever this callback changes.
+  const handleSelectNode = useCallback((node: EnrichedGraphNode | null) => {
     setSelectedNode(node);
     if (node) {
       setActiveTab("inspector");
     }
-  };
+  }, []);
 
   const handleSelectEntityById = (entityId: string) => {
     const target = nodes.find((n) => n.id === entityId);

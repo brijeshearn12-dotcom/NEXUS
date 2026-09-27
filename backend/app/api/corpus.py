@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.core.db import get_db
+from app.core.limits import MAX_QUERY_TEXT_CHARS, safe_error_detail
 from app.services.corpus_service import load_curated_corpus
 from app.services.extraction.service import extract_all_corpus_documents
 
@@ -89,7 +90,7 @@ async def extract_all_corpus_endpoint(
         logger.exception("Batch corpus extraction failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Batch corpus extraction encountered an error: {str(exc)}",
+            detail=safe_error_detail("Batch corpus extraction encountered an error", exc),
         ) from exc
 
 
@@ -128,8 +129,10 @@ async def load_corpus_endpoint() -> dict[str, Any]:
 async def list_corpus(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    verification_status: str | None = Query(None, description="Filter by verification status"),
-    case_id: str | None = Query(None, description="Filter by case ID"),
+    verification_status: str | None = Query(
+        None, max_length=MAX_QUERY_TEXT_CHARS, description="Filter by verification status"
+    ),
+    case_id: str | None = Query(None, max_length=MAX_QUERY_TEXT_CHARS, description="Filter by case ID"),
 ) -> dict[str, Any]:
     """Return lightweight paginated metadata for ingested corpus documents."""
     try:

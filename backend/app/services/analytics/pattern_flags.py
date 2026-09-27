@@ -28,6 +28,16 @@ DENSITY_RATIO_THRESHOLD = 2.0
 MIN_DEGREE_FOR_CLUSTERING = 3
 
 
+
+def _flag_id(kind: str, node_id: str) -> str:
+    """Stable, unique flag ID per (flag type, entity).
+
+    Entity IDs look like ``ent_case_100478559_7e061c921c5184ed``; truncating them (as before)
+    made every flag of one type in a case share an ID, so flags overwrote each other when
+    persisted and analyst decisions could not target a single flag.
+    """
+    return f"flag_{kind}_{str(node_id).removeprefix('ent_')}"
+
 def detect_pattern_flags(
     G: nx.Graph,
     case_id: str,
@@ -124,7 +134,7 @@ def detect_pattern_flags(
             )
 
             flags.append({
-                "flag_id": f"flag_bridge_{str(node_id).replace('ent_', '')[:12]}",
+                "flag_id": _flag_id("bridge", node_id),
                 "flag_type": "bridge_node",
                 "entity_id": node_id,
                 "canonical_name": canonical_name,
@@ -153,7 +163,7 @@ def detect_pattern_flags(
         if len(node_case_ids) >= 2:
             sorted_cases = sorted(list(node_case_ids))
             flags.append({
-                "flag_id": f"flag_cross_{str(node_id).replace('ent_', '')[:12]}",
+                "flag_id": _flag_id("cross", node_id),
                 "flag_type": "cross_case_recurrence",
                 "entity_id": node_id,
                 "canonical_name": canonical_name,
@@ -188,7 +198,7 @@ def detect_pattern_flags(
         ):
             ratio = c_val / max(global_density, 0.0001)
             flags.append({
-                "flag_id": f"flag_density_{str(node_id).replace('ent_', '')[:12]}",
+                "flag_id": _flag_id("density", node_id),
                 "flag_type": "density_anomaly",
                 "entity_id": node_id,
                 "canonical_name": canonical_name,

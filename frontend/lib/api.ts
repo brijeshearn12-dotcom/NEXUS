@@ -140,10 +140,16 @@ export async function apiRequest<T>(
   } catch (err: unknown) {
     clearTimeout(timeoutId);
     if (err instanceof Error && err.name === "AbortError") {
-      return { ok: false, errorMessage: `Request timed out after ${timeoutMs / 1000}s` };
+      return {
+        ok: false,
+        errorMessage: `Request timed out after ${timeoutMs / 1000}s. The NEXUS backend may be waking up or overloaded — please retry.`,
+      };
     }
     const message = err instanceof Error ? err.message : "Network request failed";
-    return { ok: false, errorMessage: `Network/CORS error: ${message}` };
+    return {
+      ok: false,
+      errorMessage: `Cannot reach the NEXUS backend (${message}). It may be offline or still starting up — free-tier hosting can take up to a minute to wake. Please retry.`,
+    };
   }
 }
 
@@ -186,11 +192,13 @@ export interface BackendGraphResponse {
 
 export interface ReasoningTrailData {
   input_refs: string[];
-  evidence: string;
-  reasoning: string;
-  result: string;
+  /** Source passages: a list from /analysis (flags, key individuals), a string in older payloads. */
+  evidence: string | string[];
+  reasoning: string | string[];
+  /** Structured result, e.g. {rank, combined_score, degree, betweenness, pagerank}. */
+  result: string | Record<string, unknown>;
   confidence: number;
-  source: string;
+  source: string | string[];
 }
 
 export interface RankedIndividual {

@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.db import connect, disconnect, test_db_connection
+from app.core.limits import RequestSizeLimitMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,6 +35,9 @@ app = FastAPI(
 
 cors_origins = settings.allowed_cors_origins
 
+# Oversized bodies / URLs are rejected with a clean 413/414 before being buffered.
+# Added before CORS so the CORS middleware (outermost) still decorates those responses.
+app.add_middleware(RequestSizeLimitMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

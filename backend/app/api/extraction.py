@@ -9,12 +9,13 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from app.core.db import get_collection
+from app.core.limits import MAX_ID_CHARS, MAX_ID_LIST_ITEMS, safe_error_detail
 from app.services.extraction.service import extract_and_store_document
 
 logger = logging.getLogger(__name__)
@@ -23,8 +24,12 @@ router = APIRouter()
 
 
 class ExtractionRunRequest(BaseModel):
-    document_id: str | None = Field(default=None, description="Single document ID to process")
-    document_ids: list[str] | None = Field(default=None, description="Batch of document IDs to process")
+    document_id: str | None = Field(
+        default=None, max_length=MAX_ID_CHARS, description="Single document ID to process"
+    )
+    document_ids: list[Annotated[str, StringConstraints(max_length=MAX_ID_CHARS)]] | None = Field(
+        default=None, max_length=MAX_ID_LIST_ITEMS, description="Batch of document IDs to process"
+    )
     enable_gemini_fallback: bool = Field(
         default=True,
         description="Whether to permit Gemini fallback if yield is low or Hindi text is detected",
@@ -74,7 +79,7 @@ async def run_extraction(request: ExtractionRunRequest) -> dict[str, Any]:
         logger.exception("Extraction failed for document %s: %s", request.document_id, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Extraction pipeline encountered an internal error: {str(exc)}",
+            detail=safe_error_detail("Extraction pipeline encountered an internal error", exc),
         ) from exc
 
 

@@ -5,6 +5,29 @@
 
 ---
 
+## Session: Day 8.2 / Day 9 — Security & UI Hardening, Demo Readiness (branch `member1`)
+**Date:** 2026-09-27
+**Status:** Task 8.2 complete on member1 (`872a2e8`); Day 9 partially complete — production steps need access
+
+### Decisions Made
+- Task 8.2 hardening: request-size guard (413/414), length limits on all text inputs, 500s no longer echo internal errors; no secrets found in tree or history.
+- Fixed P0 Reasoning Trail crash (API returns lists/objects; panel rendered them as React children) and P1 flag-ID collisions (IDs truncated to the case prefix; flags overwrote each other).
+- Fixed Cytoscape `notify` console error, UTC-as-local audit times, inaccurate "tamper-evident and immutable" audit wording; added graph empty state and clearer backend-unreachable messages.
+- Verified with the network blocked and no LLM keys: all 20 judgments extract (8,213 entities); full pipeline has 0 records missing provenance; two identical regression passes.
+- Added `scripts/offline_demo_backend.py` (offline fallback on an in-memory DB) and `scripts/capture_demo_screens.mjs` (real backup screenshots). Evidence: `docs/task-9-demo-readiness-audit.md`.
+
+### Blockers
+- No production access (MongoDB URI, Render dashboard, env vars): production has graphs for only 5/20 cases and still runs `main` (with the trail crash).
+- GitHub push of member1 blocked (403) until Write access is confirmed.
+- Key-individual ranking includes cited-precedent/place names on the demo case — needs a team decision.
+
+### Next Priority
+1. Leader reviews and merges member1; Render redeploys.
+2. Pre-compute graphs for demo cases in production; re-capture backups from production; record backup video; hotspot test.
+3. Decide on the ranking data-quality issue before rehearsal.
+
+---
+
 ## Session: Day 7 — Task 7.2: Corpus-Level Command Center
 **Date:** 2026-09-24
 **Status:** Complete
