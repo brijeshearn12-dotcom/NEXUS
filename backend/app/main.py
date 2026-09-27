@@ -81,6 +81,12 @@ app.include_router(extraction.router, prefix="/api/extraction", tags=["Extractio
 app.include_router(validate.router, prefix="/api/validate", tags=["Validation"])
 app.include_router(report.router, prefix="/api/report", tags=["Report"])
 
+# Cross-case candidate matches (feature-flagged via ENABLE_CROSS_CASE; own router so that
+# /api/corpus/{doc_id} cannot shadow its paths)
+from app.api import cross_case  # noqa: E402
+
+app.include_router(cross_case.router, prefix="/api/cross-case", tags=["Cross-Case Matches"])
+
 # Also mount under non-/api prefix for backward compatibility with frontend / existing routes
 app.include_router(corpus.router, prefix="/corpus", tags=["Corpus"], include_in_schema=False)
 app.include_router(cases.router, prefix="/cases", tags=["Cases"], include_in_schema=False)

@@ -11,6 +11,7 @@ import {
   EnrichedGraphEdge,
   SimulationResponse,
   RankedIndividual,
+  fetchCrossCaseStatus,
 } from "@/lib/api";
 import GraphCanvas from "@/components/GraphCanvas";
 import GraphSearch from "@/components/GraphSearch";
@@ -24,6 +25,7 @@ import WhatIfControl from "@/components/WhatIfControl";
 import GuidedFlowModal from "@/components/GuidedFlowModal";
 import ReportDownloadButton from "@/components/ReportDownloadButton";
 import SyntheticBridgeControl from "@/components/SyntheticBridgeControl";
+import CrossCaseMatchesPanel from "@/components/CrossCaseMatchesPanel";
 
 interface Props {
   params: { id: string };
@@ -40,8 +42,14 @@ export default function CaseGraphPage({ params }: Props) {
 
   // Active tab in sidebar
   const [activeTab, setActiveTab] = useState<
-    "inspector" | "individuals" | "flags" | "audit" | "bridge" | "legend"
+    "inspector" | "individuals" | "flags" | "audit" | "cross" | "bridge" | "legend"
   >("inspector");
+
+  // Cross-case candidate matches tab (shown only when the backend has ENABLE_CROSS_CASE on)
+  const [crossCaseEnabled, setCrossCaseEnabled] = useState(false);
+  useEffect(() => {
+    fetchCrossCaseStatus().then((res) => setCrossCaseEnabled(Boolean(res.ok && res.data?.enabled)));
+  }, []);
 
   // Loading & refresh states
   const [loading, setLoading] = useState(true);
@@ -406,6 +414,21 @@ export default function CaseGraphPage({ params }: Props) {
               Audit
             </button>
 
+            {crossCaseEnabled && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("cross")}
+                className={`flex-1 py-2 text-center transition-colors border-b-2 ${
+                  activeTab === "cross"
+                    ? "border-fuchsia-500 font-bold text-white bg-slate-800/60"
+                    : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+                }`}
+                title="Cross-case candidate matches for analyst review"
+              >
+                Cross
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setActiveTab("bridge")}
@@ -468,6 +491,13 @@ export default function CaseGraphPage({ params }: Props) {
               <AuditTrailPanel
                 caseId={caseId}
                 refreshTrigger={auditTrigger}
+              />
+            )}
+
+            {activeTab === "cross" && crossCaseEnabled && (
+              <CrossCaseMatchesPanel
+                caseId={caseId}
+                onDecision={() => setAuditTrigger((prev) => prev + 1)}
               />
             )}
 
