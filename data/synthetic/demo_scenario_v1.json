@@ -1,0 +1,98 @@
+{
+  "scenario_id": "demo_scenario_v1",
+  "synthetic": true,
+  "notice": "SYNTHETIC DEMONSTRATION DATA. Every address, transaction hash, amount, label and complaint in this file is invented for the NEXUS SIH26183 demo and validation plan. Addresses use a SYN- prefix so they cannot match a real wallet. Not derived from any real investigation.",
+  "version": "1.0",
+  "chain": "synthetic",
+  "chain_model": "account",
+  "asset": { "symbol": "USDT", "decimals": 6 },
+  "complaint": {
+    "complaint_ref": "SYN-COMPLAINT-0001",
+    "reported_wallet": "SYN-SUSPECT-01",
+    "incident_time": "2026-06-14T13:58:00Z",
+    "reported_amount": "5000",
+    "reported_typology": "investment scam (synthetic)"
+  },
+  "wallets": [
+    { "address": "SYN-VICTIM-01", "note": "victim's own wallet" },
+    { "address": "SYN-SUSPECT-01", "note": "victim-reported suspect wallet" },
+    { "address": "SYN-W1", "note": "intermediary" },
+    { "address": "SYN-W2", "note": "intermediary" },
+    { "address": "SYN-W3", "note": "layering / consolidation wallet" },
+    { "address": "SYN-MIXER-01", "note": "labelled mixer" },
+    { "address": "SYN-DEPOSIT-01", "note": "exchange deposit address used by the suspect flow" },
+    { "address": "SYN-DEPOSIT-02", "note": "another deposit address of the same exchange" },
+    { "address": "SYN-HOT-01", "note": "labelled exchange hot wallet" },
+    { "address": "SYN-HOT-02", "note": "exchange hot wallet (unlabelled)" },
+    { "address": "SYN-HOT-03", "note": "exchange hot wallet (unlabelled)" },
+    { "address": "SYN-USER-A", "note": "unrelated exchange customer" },
+    { "address": "SYN-USER-B", "note": "unrelated exchange customer" },
+    { "address": "SYN-USER-C", "note": "unrelated exchange customer" }
+  ],
+  "labels": [
+    { "address": "SYN-HOT-01", "label": "Exchange X", "category": "vasp_hot_wallet", "source": "synthetic-labels-v1", "as_of": "2026-06-01" },
+    { "address": "SYN-MIXER-01", "label": "Mixer M", "category": "mixer", "source": "synthetic-labels-v1", "as_of": "2026-06-01" }
+  ],
+  "transfers": [
+    { "id": "t0", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000100", "block_time": "2026-06-14T13:58:00Z", "from": "SYN-VICTIM-01", "to": "SYN-SUSPECT-01", "amount": "5000" },
+    { "id": "t1", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000101", "block_time": "2026-06-14T14:03:40Z", "from": "SYN-SUSPECT-01", "to": "SYN-W1", "amount": "2500" },
+    { "id": "t2", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000102", "block_time": "2026-06-14T14:04:10Z", "from": "SYN-SUSPECT-01", "to": "SYN-W2", "amount": "2500" },
+    { "id": "t3", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000103", "block_time": "2026-06-14T14:19:40Z", "from": "SYN-W1", "to": "SYN-W3", "amount": "2480" },
+    { "id": "t4", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000104", "block_time": "2026-06-14T14:22:15Z", "from": "SYN-W2", "to": "SYN-W3", "amount": "1950" },
+    { "id": "t5", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000105", "block_time": "2026-06-14T14:23:02Z", "from": "SYN-W2", "to": "SYN-MIXER-01", "amount": "540" },
+    { "id": "t6", "tx_hash": "0x7c1e00000000000000000000000000000000000000000000000000000000a09b", "block_time": "2026-06-14T14:41:05Z", "from": "SYN-W3", "to": "SYN-DEPOSIT-01", "amount": "4400" },
+    { "id": "t7", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000107", "block_time": "2026-06-14T14:41:30Z", "from": "SYN-DEPOSIT-01", "to": "SYN-HOT-01", "amount": "4400" }
+  ],
+  "background_transfers": [
+    { "id": "b1", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000201", "block_time": "2026-06-13T09:10:00Z", "from": "SYN-USER-A", "to": "SYN-DEPOSIT-01", "amount": "1200" },
+    { "id": "b2", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000202", "block_time": "2026-06-13T09:10:40Z", "from": "SYN-DEPOSIT-01", "to": "SYN-HOT-01", "amount": "1200" },
+    { "id": "b3", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000203", "block_time": "2026-06-13T18:22:00Z", "from": "SYN-USER-B", "to": "SYN-DEPOSIT-01", "amount": "300" },
+    { "id": "b4", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000204", "block_time": "2026-06-13T18:22:31Z", "from": "SYN-DEPOSIT-01", "to": "SYN-HOT-01", "amount": "300" },
+    { "id": "b5", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000205", "block_time": "2026-06-14T09:59:20Z", "from": "SYN-USER-C", "to": "SYN-DEPOSIT-02", "amount": "8000" },
+    { "id": "b6", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000206", "block_time": "2026-06-14T10:00:00Z", "from": "SYN-DEPOSIT-02", "to": "SYN-HOT-01", "amount": "8000" },
+    { "id": "b7", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000207", "block_time": "2026-06-14T12:00:00Z", "from": "SYN-HOT-01", "to": "SYN-HOT-02", "amount": "50000" },
+    { "id": "b8", "tx_hash": "0x0000000000000000000000000000000000000000000000000000000000000208", "block_time": "2026-06-14T12:30:00Z", "from": "SYN-HOT-03", "to": "SYN-HOT-01", "amount": "20000" }
+  ],
+  "ground_truth": {
+    "trace_parameters": { "seed": "SYN-SUSPECT-01", "direction": "out", "max_hops": 5, "window_start": "2026-06-14T13:58:00Z", "window_end": "2026-06-21T13:58:00Z", "min_value": "10" },
+    "expected_path": ["SYN-SUSPECT-01", "SYN-W1", "SYN-W3", "SYN-DEPOSIT-01", "SYN-HOT-01"],
+    "expected_path_transfers": ["t1", "t3", "t6", "t7"],
+    "expected_side_paths": [
+      { "path": ["SYN-SUSPECT-01", "SYN-W2", "SYN-W3"], "transfers": ["t2", "t4"] },
+      { "path": ["SYN-SUSPECT-01", "SYN-W2", "SYN-MIXER-01"], "transfers": ["t2", "t5"], "stop_reason": "mixer — flagged, not followed" }
+    ],
+    "expected_roles": {
+      "SYN-SUSPECT-01": "suspect",
+      "SYN-W1": "intermediary",
+      "SYN-W2": "intermediary",
+      "SYN-W3": "intermediary",
+      "SYN-MIXER-01": "mixer",
+      "SYN-DEPOSIT-01": "deposit",
+      "SYN-DEPOSIT-02": "deposit",
+      "SYN-HOT-01": "hot",
+      "SYN-HOT-02": "hot",
+      "SYN-HOT-03": "hot"
+    },
+    "expected_clusters": [
+      { "cluster_id": "C-7", "entity": "Exchange X", "members": ["SYN-HOT-01", "SYN-HOT-02", "SYN-HOT-03", "SYN-DEPOSIT-01", "SYN-DEPOSIT-02"], "heuristic": "deposit-sweep + hot-wallet transfers" }
+    ],
+    "expected_patterns": [
+      { "type": "fan_out", "wallet": "SYN-SUSPECT-01", "transfers": ["t1", "t2"] },
+      { "type": "fan_in", "wallet": "SYN-W3", "transfers": ["t3", "t4"] },
+      { "type": "layering", "wallets": ["SYN-SUSPECT-01", "SYN-W3"] },
+      { "type": "rapid_movement", "hops": 4, "first_hop_time": "2026-06-14T14:03:40Z", "last_hop_time": "2026-06-14T14:41:30Z", "duration_minutes": 37.8 },
+      { "type": "mixer_interaction", "wallet": "SYN-W2", "transfers": ["t5"] }
+    ],
+    "expected_lead": {
+      "vasp": "Exchange X (synthetic label)",
+      "endpoint_wallet": "SYN-HOT-01",
+      "deposit_wallet": "SYN-DEPOSIT-01",
+      "signals": ["known_label", "deposit_sweep", "cluster_membership"],
+      "confidence": "medium",
+      "risk": { "level": "high", "factors": ["vasp_proximity", "layering", "rapid_movement", "mixer_exposure"] }
+    },
+    "safeguard_cases": [
+      { "description": "A wallet with only one signal (a single transfer to a labelled address) must not produce a lead.", "expected_lead": null }
+    ]
+  }
+}
